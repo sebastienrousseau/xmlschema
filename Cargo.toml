@@ -31,7 +31,6 @@ include = [
 debug = true
 
 [dependencies]
-xmltree = "0.10.3"
 
 [dev-dependencies]
 criterion = "0.4.0"
