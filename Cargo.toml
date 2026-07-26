@@ -31,7 +31,7 @@ include = [
 debug = true
 
 [dependencies]
-commons = { git = "https://github.com/sebastienrousseau/commons", tag = "v0.0.1", default-features = false, features = ["error", "validation"] }
+commons = { package = "euxis-commons", git = "https://github.com/sebastienrousseau/commons", tag = "v0.0.3", default-features = false, features = ["error", "validation"] }
 
 [dev-dependencies]
 criterion = "0.4.0"
