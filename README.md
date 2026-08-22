@@ -1,134 +1,197 @@
-# xmlschema
+<!-- SPDX-License-Identifier: Apache-2.0 OR MIT -->
 
-XML Schema validator and data conversion library for Rust.
+<h1 align="center">xmlschema</h1>
 
-[![Made With Love][made-with-rust]][6]
-[![Crates.io][crates-badge]][8]
-[![Lib.rs][libs-badge]][10]
-[![Docs.rs][docs-badge]][9]
-[![License][license-badge]][2]
+<p align="center">
+  XML Schema (XSD) validation for Rust — the schema member of the
+  <a href="https://github.com/sebastienrousseau/oxml">oxml</a> suite,
+  with zero <code>unsafe</code> code.
+</p>
 
-![divider][divider]
+<p align="center">
+  <a href="https://github.com/sebastienrousseau/xmlschema/actions"><img src="https://img.shields.io/github/actions/workflow/status/sebastienrousseau/xmlschema/ci.yml?style=for-the-badge&logo=github" alt="Build" /></a>
+  <a href="https://crates.io/crates/xmlschema"><img src="https://img.shields.io/crates/v/xmlschema.svg?style=for-the-badge&color=fc8d62&logo=rust" alt="Crates.io" /></a>
+  <a href="https://docs.rs/xmlschema"><img src="https://img.shields.io/badge/docs.rs-xmlschema-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" alt="Docs.rs" /></a>
+  <a href="https://lib.rs/crates/xmlschema"><img src="https://img.shields.io/badge/lib.rs-xmlschema-orange.svg?style=for-the-badge" alt="lib.rs" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/sebastienrousseau/xmlschema"><img src="https://img.shields.io/ossf-scorecard/github.com/sebastienrousseau/xmlschema?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" /></a>
+</p>
 
-## Welcome to XML Schema 👋
+---
 
-![XML Schema Banner][xmlschema]
+> [!WARNING]
+> **This crate is being rewritten and is not usable today.**
+>
+> `0.0.1` was published in February 2023 and exposes **no public
+> API** — every type in it is private, so nothing can be constructed,
+> called, or validated from outside the crate. If you depend on it
+> today you get a crate that compiles and does nothing.
+>
+> It is being rebuilt as the schema member of the
+> [oxml](https://github.com/sebastienrousseau/oxml) suite. Until then,
+> use [`libxml`](https://crates.io/crates/libxml) if you need XSD
+> validation in Rust.
 
-<!-- markdownlint-disable MD033 -->
-<center>
+## Contents
 
-**[Website][0]
-• [Documentation][9]
-• [Report Bug][3]
-• [Request Feature][3]
-• [Contributing Guidelines][4]**
+**Getting started**
 
-</center>
+- [Status](#status) — what works today, honestly
+- [Install](#install) — once there is something to install
 
-<!-- markdownlint-enable MD033 -->
+**Reference**
 
-## Overview 📖
+- [Why this crate exists](#why-this-crate-exists) — the gap it fills
+- [The oxml ecosystem](#the-oxml-ecosystem) — where this fits
+- [Ecosystem comparison](#ecosystem-comparison) — XSD support in Rust
+- [Planned capabilities](#planned-capabilities) — the roadmap
 
-The xmlschema library is an implementation of [XML Schema](https://www.w3.org/2001/XMLSchema) for Rust. It provides a set of functions to validate XML documents against an XML Schema Definition (XSD) file and to convert XML documents to JSON and vice versa.
+**Practical**
 
-## Features ✨
+- [Development](#development)
+- [Security](#security)
+- [Documentation](#documentation)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
 
-This library aims to include the following features:
+---
 
-- Full XSD 1.0 and XSD 1.1 support
-- Building of XML schema objects from XSD files
-- Validation of XML instances against XSD schemas
-- Decoding of XML data into Python data and to JSON
-- Encoding of Rust data and JSON to XML
+## Status
 
-## Installation 📦
+Honestly: **not usable**.
 
-It takes just a few minutes to get up and running with `xmlschema`.
+| | State |
+|---|---|
+| Published version | `0.0.1`, February 2023 |
+| Public API | **None** — every type is private |
+| Validation | Not implemented |
+| Parser | Partial XSD data model, no wiring |
+| Tests | None |
+| CI | None |
 
-### Requirements
+The crate holds a partial data model of the XSD schema language —
+`Element`, `ComplexType`, `SimpleType`, `Attribute` and friends — but
+they are not `pub`, there is no parser that populates them, and there
+is no validator that consumes them.
 
-`xmlschema` requires Rust **1.67.1** or later.
+That is being fixed rather than papered over. The rewrite depends on
+[`oxml`](https://github.com/sebastienrousseau/oxml) for parsing and
+tree traversal, which is where the work went first: a validator needs
+a document model before it needs validation rules.
 
-### Documentation
+## Install
 
-> ℹ️ **Info:** Please check out our [website][0] for more information
-and find our documentation on [docs.rs][9], [lib.rs][10] and
-[crates.io][8].
-
-## Usage 📖
-
-To use `xmlschema` in your project, add the following to your
-`Cargo.toml` file:
+Not yet. When the rewrite lands:
 
 ```toml
 [dependencies]
-xmlschema = "0.0.1"
+xmlschema = "0.0.X"
 ```
 
-Add the following to your `main.rs` file:
+## Why this crate exists
 
-```rust
-extern crate xmlschema;
-use xmlschema::*;
+Rust has no pure-Rust XSD validator. The options today are:
+
+- **[`libxml`](https://crates.io/crates/libxml)** — bindings to
+  libxml2. Complete and battle-tested, but it is C: it needs a build
+  toolchain, contains `unsafe`, does not work in WebAssembly, and
+  inherits libxml2's CVE stream.
+- **Nothing else.** There is no maintained pure-Rust implementation.
+
+For a project already committed to safe Rust — no C toolchain, WASM
+targets, an auditable dependency tree — that is not a choice so much as
+an absence.
+
+`xmlschema` exists to close it, with the same constraints as the rest
+of the suite: `#![forbid(unsafe_code)]`, no FFI, no C.
+
+## The oxml ecosystem
+
+Every member ships the **same version number**, so there is never a
+compatibility table to consult.
+
+| Crate | What it is | Status |
+|---|---|---|
+| [`oxml`](https://github.com/sebastienrousseau/oxml) | Core — parser, tree, XPath 1.0 | **Available** |
+| [`oxml-cli`](https://github.com/sebastienrousseau/oxml-cli) | Command-line querying and formatting | Planned |
+| [`oxml-lsp`](https://github.com/sebastienrousseau/oxml-lsp) | Language server | Planned |
+| [`oxml-mcp`](https://github.com/sebastienrousseau/oxml-mcp) | Model Context Protocol server | Planned |
+| [`oxml-wasm`](https://github.com/sebastienrousseau/oxml-wasm) | WebAssembly bindings | Planned |
+| **`xmlschema`** | **XSD validation** | **Being rewritten** |
+
+This crate keeps its published name rather than being folded into
+`oxml`. The name means XSD validation specifically, and repurposing it
+into a general toolkit would have handed existing users something
+entirely different under a name they already depend on.
+
+## Ecosystem comparison
+
+| Crate | XSD validation | Pure Rust | WASM | Last release |
+|---|---|---|---|---|
+| **`xmlschema`** | planned | ✅ | ✅ | 2023 (unusable) |
+| `libxml` | ✅ | ✗ (C-FFI) | ✗ | active |
+| `quick-xml` | ✗ | ✅ | ✅ | active |
+| `roxmltree` | ✗ | ✅ | ✅ | active |
+| `xot` | ✗ | ✅ | ✅ | 2025 |
+
+## Planned capabilities
+
+In order:
+
+1. **Schema parsing** — read an `.xsd` into a usable model, built on
+   `oxml`'s tree.
+2. **Structural validation** — elements, attributes, cardinality,
+   sequence/choice/all.
+3. **Simple type validation** — the built-in datatypes, restrictions,
+   patterns, enumerations.
+4. **Complex types** — extension, restriction, mixed content.
+5. **Diagnostics** — every violation reported with an element path and
+   a reason, so a caller can fix all of them in one pass rather than
+   probing one failure at a time.
+
+Import mechanisms (`xs:import`, `xs:include`, `xs:redefine`) come after
+the core is correct, because they multiply the surface without adding
+validation power.
+
+## Development
+
+```bash
+git clone https://github.com/sebastienrousseau/xmlschema
+cd xmlschema
+cargo test
 ```
 
-then you can use the functions in your application code.
+## Security
 
-### Examples
+XSD validation is normally applied to untrusted documents, which makes
+the parser's threat model part of this crate's threat model. It
+inherits `oxml`'s posture:
 
-`XML Schema` comes with a set of examples that you can use to get started. The
-examples are located in the `examples` directory of the project. To run
-the examples, clone the repository and run the following command in your
-terminal from the project root directory.
+- **No entity expansion.** Only the five predefined entities and
+  numeric character references are resolved, so XXE and billion-laughs
+  are foreclosed by construction rather than by a flag.
+- **No `unsafe`.** `#![forbid(unsafe_code)]`, enforced at compile time.
 
-```shell
-cargo run --example xmlschema
-```
+Report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 
-## Semantic Versioning Policy 🚥
+## Documentation
 
-For transparency into our release cycle and in striving to maintain
-backward compatibility, `XML Schema` follows [semantic versioning][7].
+- [API documentation](https://docs.rs/xmlschema)
+- [CHANGELOG.md](CHANGELOG.md)
 
-## License 📝
+## Acknowledgements
 
-The project is licensed under the terms of both the MIT license and the
-Apache License (Version 2.0).
+- **[libxml2](https://gitlab.gnome.org/GNOME/libxml2)** — the
+  reference implementation, and the yardstick for behaviour.
+- **[W3C](https://www.w3.org/TR/xmlschema11-1/)** — for the XML Schema
+  specification.
+- **[python-xmlschema](https://github.com/sissaschool/xmlschema)** —
+  proof that a readable, standalone XSD implementation is achievable.
 
-- [Apache License, Version 2.0][1]
-- [MIT license][2]
+## License
 
-## Contribution 🤝
+Licensed under either of
 
-Unless you explicitly state otherwise, any contribution intentionally
-submitted for inclusion in the work by you, as defined in the Apache-2.0
-license, shall be dual licensed as above, without any additional terms
-or conditions.
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
 
-![divider][divider]
-
-## Acknowledgements 💙
-
-A big thank you to all the awesome contributors of [Mini Functions][6]
-for their help and support. A special thank you goes to the
-[Rust Reddit](https://www.reddit.com/r/rust/) community for providing a
-lot of useful suggestions on how to improve this project.
-
-[0]: https://minifunctions.com/xmlschema
-[1]: http://www.apache.org/licenses/LICENSE-2.0
-[2]: http://opensource.org/licenses/MIT
-[3]: https://github.com/sebastienrousseau/xmlschema/issues
-[4]: https://raw.githubusercontent.com/sebastienrousseau/xmlschema/main/.github/CONTRIBUTING.md
-[6]: https://github.com/sebastienrousseau/xmlschema/graphs/contributors
-[7]: http://semver.org/
-[8]: https://crates.io/crates/xmlschema
-[9]: https://docs.rs/xmlschema
-[10]: https://lib.rs/crates/xmlschema
-
-[xmlschema]: https://raw.githubusercontent.com/sebastienrousseau/vault/main/assets/xmlschema/banners/banner-xmlschema-1597x377.svg "XML Schema Banner"
-[crates-badge]: https://img.shields.io/crates/v/xmlschema.svg?style=for-the-badge 'Crates.io'
-[divider]: https://raw.githubusercontent.com/sebastienrousseau/vault/main/assets/elements/divider.svg "divider"
-[docs-badge]: https://img.shields.io/docsrs/xmlschema.svg?style=for-the-badge 'Docs.rs'
-[libs-badge]: https://img.shields.io/badge/lib.rs-v0.0.2-orange.svg?style=for-the-badge 'Lib.rs'
-[license-badge]: https://img.shields.io/crates/l/xmlschema.svg?style=for-the-badge 'License'
-[made-with-rust]: https://img.shields.io/badge/rust-f04041?style=for-the-badge&labelColor=c0282d&logo=rust 'Made With Rust'
+at your option.
