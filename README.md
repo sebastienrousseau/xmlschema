@@ -18,18 +18,13 @@
 
 ---
 
-> [!WARNING]
-> **This crate is being rewritten and is not usable today.**
+> [!NOTE]
+> **The rewrite has landed.** Schema parsing, structural validation,
+> simple types with restriction facets, and `xs:pattern` all work; see
+> [Status](#status) for exactly what is and is not supported.
 >
-> `0.0.1` was published in February 2023 and exposes **no public
-> API** — every type in it is private, so nothing can be constructed,
-> called, or validated from outside the crate. If you depend on it
-> today you get a crate that compiles and does nothing.
->
-> It is being rebuilt as the schema member of the
-> [oxml](https://github.com/sebastienrousseau/oxml) suite. Until then,
-> use [`libxml`](https://crates.io/crates/libxml) if you need XSD
-> validation in Rust.
+> `0.0.1` on crates.io is the *old* crate, which exposed no public API
+> at all. Do not use it.
 
 ## Contents
 
@@ -57,34 +52,66 @@
 
 ## Status
 
-Honestly: **not usable**.
-
 | | State |
 |---|---|
-| Published version | `0.0.1`, February 2023 |
-| Public API | **None** — every type is private |
-| Validation | Not implemented |
-| Parser | Partial XSD data model, no wiring |
-| Tests | None |
-| CI | None |
+| Schema parsing | ✅ elements, sequence, choice, cardinality, attributes |
+| Simple types | ✅ nine built-ins, nine restriction facets |
+| `xs:pattern` | ✅ own engine, XSD dialect |
+| Diagnostics | ✅ every violation, each with a path |
+| Tests | ✅ 27 |
+| `xs:all` | ✗ |
+| `xs:import` / `include` | ✗ |
+| Identity constraints | ✗ |
+| Complex-type derivation | ✗ |
 
-The crate holds a partial data model of the XSD schema language —
-`Element`, `ComplexType`, `SimpleType`, `Attribute` and friends — but
-they are not `pub`, there is no parser that populates them, and there
-is no validator that consumes them.
-
-That is being fixed rather than papered over. The rewrite depends on
-[`oxml`](https://github.com/sebastienrousseau/oxml) for parsing and
-tree traversal, which is where the work went first: a validator needs
-a document model before it needs validation rules.
+An unsupported construct is skipped rather than rejected: the
+surrounding rules still apply, so a schema using `xs:all` validates
+everything else correctly instead of failing wholesale.
 
 ## Install
 
-Not yet. When the rewrite lands:
-
 ```toml
 [dependencies]
-xmlschema = "0.0.X"
+xmlschema = { git = "https://github.com/sebastienrousseau/xmlschema" }
+oxml = { git = "https://github.com/sebastienrousseau/oxml" }
+```
+
+Published releases follow once the suite cuts its first version
+together.
+
+## Quick Start
+
+```rust
+use xmlschema::{parse_schema, validate};
+
+let xsd = r#"
+  <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="book">
+      <xs:complexType>
+        <xs:sequence>
+          <xs:element name="title" type="xs:string"/>
+        </xs:sequence>
+        <xs:attribute name="lang" type="xs:string" use="required"/>
+      </xs:complexType>
+    </xs:element>
+  </xs:schema>
+"#;
+
+let schema = parse_schema(xsd)?;
+let doc = oxml::parse("<book lang='en'><title>Dune</title></book>")?;
+
+assert!(validate(&doc, &schema).is_valid());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Every violation is reported, each with a path:
+
+```text
+/invoice/issued — `22/08/2026` is not a valid date (YYYY-MM-DD)
+/invoice/line[1]/@currency — `pounds` does not match the pattern `[A-Z]{3}`
+/invoice/line[1]/amount — -5 must be greater than 0
+/invoice/line[2] — missing required attribute `currency`
+/invoice/line[2]/amount — `not a number` is not a valid decimal
 ```
 
 ## Why this crate exists
