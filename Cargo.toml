@@ -1,83 +1,47 @@
 [package]
-authors = ["Sebastian Rousseau <sebastian.rousseau@gmail.com"]
-categories = ["parsing", "command-line-utilities"]
-description = "XML Schema validator and data conversion library for Rust."
-edition = "2021"
-homepage = "https://minifunctions.com"
-keywords = ["xml", "xsd", "encoder", "decoder", "xmlschema"]
-license = "MIT OR Apache-2.0"
 name = "xmlschema"
-repository = "https://github.com/sebastienrousseau/xmlschema/"
-rust-version = "1.67.1"
 version = "0.0.1"
+edition = "2024"
+rust-version = "1.86.0"
+license = "MIT OR Apache-2.0"
+description = "XML Schema (XSD) validation for Rust, with zero unsafe code"
+repository = "https://github.com/sebastienrousseau/xmlschema"
+homepage = "https://github.com/sebastienrousseau/xmlschema"
+documentation = "https://docs.rs/xmlschema"
+readme = "README.md"
+keywords = ["xml", "xsd", "schema", "validation", "safe"]
+categories = ["parser-implementations", "encoding"]
+authors = ["Sebastien Rousseau <sebastian.rousseau@gmail.com>"]
+autoexamples = false
 include = [
-    "../../LICENSE-APACHE",
-    "../../LICENSE-MIT",
-    "/benches/**",
-    "/build.rs",
     "/Cargo.toml",
     "/examples/**",
+    "/LICENSE-APACHE",
+    "/LICENSE-MIT",
     "/README.md",
     "/src/**",
     "/tests/**",
 ]
 
-# [[bench]]
-# name = "benchmark"
-# harness = false
-# path = "benches/xmlschema.rs"
-
-[profile.bench]
-debug = true
-
 [dependencies]
-commons = { git = "https://github.com/sebastienrousseau/commons", tag = "v0.0.1", default-features = false, features = ["error", "validation"] }
+oxml = { git = "https://github.com/sebastienrousseau/oxml", default-features = false, features = ["std"] }
 
 [dev-dependencies]
-criterion = "0.4.0"
 
-[lib]
-crate-type = ["lib"]
-name = "xmlschema"
-path = "src/lib.rs"
+[[example]]
+name = "validate"
+path = "examples/validate.rs"
 
-[features]
-default = []
+[lints.rust]
+missing_docs = "warn"
+missing_debug_implementations = "forbid"
+unused_results = "warn"
 
-[package.metadata.docs.rs]
-all-features = true
-
-[profile.dev]
-codegen-units = 256
-debug = true
-debug-assertions = true
-incremental = true
-lto = false
-opt-level = 0
-overflow-checks = true
-panic = 'unwind'
-rpath = false
-strip = false
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
 
 [profile.release]
-codegen-units = 1        # Compile crates one after another so the compiler can optimize better
-debug = false            # Disable debug information
-debug-assertions = false # Disable debug assertions
-incremental = false      # Disable incremental compilation
-lto = true               # Enables link to optimizations
-opt-level = "s"          # Optimize for binary size
-overflow-checks = false  # Disable overflow checks
-panic = "abort"          # Strip expensive panic clean-up logic
-rpath = false            # Disable rpath
-strip = "symbols"        # Automatically strip symbols from the binary.
-
-[profile.test]
-codegen-units = 256
-debug = true
-debug-assertions = true
-incremental = true
-lto = false
-opt-level = 0
-overflow-checks = true
-rpath = false
-strip = false
+opt-level = 3
+lto = true
