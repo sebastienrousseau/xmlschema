@@ -156,7 +156,12 @@ impl Validator<'_> {
     /// because `<a/><b/><a/>` against `sequence(a, b)` is an *ordering*
     /// error, and a counting check would report it as "too many a"
     /// which is not what went wrong.
-    fn check_sequence(&mut self, node: NodeId, particles: &[Particle], path: &str) {
+    fn check_sequence(
+        &mut self,
+        node: NodeId,
+        particles: &[Particle],
+        path: &str,
+    ) {
         let kids: Vec<NodeId> = self
             .doc
             .children(node)
@@ -208,7 +213,8 @@ impl Validator<'_> {
                 .element_name(extra)
                 .map(|n| n.local.as_str())
                 .unwrap_or_default();
-            let expected: Vec<&str> = particles.iter().map(|p| p.name.as_str()).collect();
+            let expected: Vec<&str> =
+                particles.iter().map(|p| p.name.as_str()).collect();
             self.violate(
                 &format!("{path}/{extra_name}"),
                 format!(
@@ -220,7 +226,12 @@ impl Validator<'_> {
         }
     }
 
-    fn check_choice(&mut self, node: NodeId, branches: &[Particle], path: &str) {
+    fn check_choice(
+        &mut self,
+        node: NodeId,
+        branches: &[Particle],
+        path: &str,
+    ) {
         let kids: Vec<NodeId> = self
             .doc
             .children(node)
@@ -235,10 +246,16 @@ impl Validator<'_> {
                 .element_name(child)
                 .map(|n| n.local.clone())
                 .unwrap_or_default();
-            if let Some(branch) = branches.iter().find(|b| b.name == child_name) {
-                self.check_element(child, branch, &format!("{path}/{child_name}"));
+            if let Some(branch) = branches.iter().find(|b| b.name == child_name)
+            {
+                self.check_element(
+                    child,
+                    branch,
+                    &format!("{path}/{child_name}"),
+                );
             } else {
-                let allowed: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+                let allowed: Vec<&str> =
+                    branches.iter().map(|b| b.name.as_str()).collect();
                 self.violate(
                     &format!("{path}/{child_name}"),
                     format!(
@@ -260,7 +277,10 @@ impl Validator<'_> {
                     }
                 }
                 None if want.required => {
-                    self.violate(path, format!("missing required attribute `{}`", want.name));
+                    self.violate(
+                        path,
+                        format!("missing required attribute `{}`", want.name),
+                    );
                 }
                 None => {}
             }
@@ -297,8 +317,9 @@ fn check_builtin(value: &str, base: BuiltIn) -> Result<(), String> {
             // loosely because timezone forms are numerous and the
             // failure mode of accepting an odd offset is far milder
             // than rejecting a valid one.
-            v.split_once('T')
-                .is_some_and(|(d, t)| is_date(d) && t.len() >= 8 && t.as_bytes()[2] == b':')
+            v.split_once('T').is_some_and(|(d, t)| {
+                is_date(d) && t.len() >= 8 && t.as_bytes()[2] == b':'
+            })
         }
     };
     if ok {
@@ -348,12 +369,18 @@ fn is_date(v: &str) -> bool {
     (1..=12).contains(&month) && (1..=31).contains(&day)
 }
 
-fn check_facets(value: &str, facets: &Facets, base: BuiltIn) -> Result<(), String> {
+fn check_facets(
+    value: &str,
+    facets: &Facets,
+    base: BuiltIn,
+) -> Result<(), String> {
     if facets.is_empty() {
         return Ok(());
     }
 
-    if !facets.enumeration.is_empty() && !facets.enumeration.iter().any(|e| e == value) {
+    if !facets.enumeration.is_empty()
+        && !facets.enumeration.iter().any(|e| e == value)
+    {
         return Err(format!(
             "`{value}` is not one of the permitted values ({})",
             facets.enumeration.join(", ")
@@ -387,7 +414,9 @@ fn check_facets(value: &str, facets: &Facets, base: BuiltIn) -> Result<(), Strin
         match Pattern::compile(source) {
             Ok(p) => {
                 if !p.matches(value) {
-                    return Err(format!("`{value}` does not match the pattern `{source}`"));
+                    return Err(format!(
+                        "`{value}` does not match the pattern `{source}`"
+                    ));
                 }
             }
             Err(e) => {
@@ -402,7 +431,10 @@ fn check_facets(value: &str, facets: &Facets, base: BuiltIn) -> Result<(), Strin
     // Numeric bounds only mean something for numeric bases.
     if matches!(
         base,
-        BuiltIn::Decimal | BuiltIn::Double | BuiltIn::Integer | BuiltIn::NonNegativeInteger
+        BuiltIn::Decimal
+            | BuiltIn::Double
+            | BuiltIn::Integer
+            | BuiltIn::NonNegativeInteger
     ) {
         if let Ok(n) = value.trim().parse::<f64>() {
             if let Some(b) = facets.min_inclusive {

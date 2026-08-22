@@ -89,13 +89,13 @@ impl BuiltIn {
     pub fn from_name(name: &str) -> Option<Self> {
         let local = name.rsplit(':').next().unwrap_or(name);
         Some(match local {
-            "string" | "normalizedString" | "token" | "NMTOKEN" | "Name" | "NCName" | "ID"
-            | "IDREF" | "language" => Self::String,
+            "string" | "normalizedString" | "token" | "NMTOKEN" | "Name"
+            | "NCName" | "ID" | "IDREF" | "language" => Self::String,
             "boolean" => Self::Boolean,
             "decimal" => Self::Decimal,
             "integer" | "int" | "long" | "short" | "byte" => Self::Integer,
-            "nonNegativeInteger" | "positiveInteger" | "unsignedInt" | "unsignedLong"
-            | "unsignedShort" => Self::NonNegativeInteger,
+            "nonNegativeInteger" | "positiveInteger" | "unsignedInt"
+            | "unsignedLong" | "unsignedShort" => Self::NonNegativeInteger,
             "double" | "float" => Self::Double,
             "date" => Self::Date,
             "dateTime" => Self::DateTime,

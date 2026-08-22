@@ -93,7 +93,10 @@ impl Pattern {
         let root = p.parse_alternation()?;
         if p.pos < chars.len() {
             return Err(PatternError {
-                message: format!("unexpected `{}` at position {}", chars[p.pos], p.pos),
+                message: format!(
+                    "unexpected `{}` at position {}",
+                    chars[p.pos], p.pos
+                ),
             });
         }
         Ok(Self {
@@ -258,6 +261,17 @@ impl Parser<'_> {
                 self.pos += 1;
                 Ok(escape_node(c))
             }
+            // A quantifier in atom position has nothing to repeat.
+            // XSD requires these to be escaped as `\\*`, `\\+`, `\\?`
+            // when meant literally, and every other engine rejects
+            // them here. Treating one as a literal would turn a typo
+            // into a pattern that quietly matches the wrong thing.
+            Some(c @ ('*' | '+' | '?')) => Err(PatternError {
+                message: format!(
+                    "nothing to repeat before `{c}` at position {}",
+                    self.pos
+                ),
+            }),
             Some(c) => {
                 self.pos += 1;
                 Ok(Node::Literal(c))
@@ -295,7 +309,9 @@ impl Parser<'_> {
             }
             // A `-` between two characters is a range; anywhere else
             // it is a literal hyphen.
-            if self.peek() == Some('-') && self.chars.get(self.pos + 1).is_some_and(|n| *n != ']') {
+            if self.peek() == Some('-')
+                && self.chars.get(self.pos + 1).is_some_and(|n| *n != ']')
+            {
                 self.pos += 1;
                 let hi = self.peek().ok_or_else(|| PatternError {
                     message: "unterminated range".to_owned(),
@@ -361,9 +377,16 @@ fn item_matches(item: &ClassItem, c: char) -> bool {
 /// many possible lengths, and the one that lets the *rest* of the
 /// pattern match is not knowable locally. Passing the continuation
 /// down is what makes backtracking fall out naturally.
-fn match_node(node: &Node, input: &[char], pos: usize, k: &mut dyn FnMut(usize) -> bool) -> bool {
+fn match_node(
+    node: &Node,
+    input: &[char],
+    pos: usize,
+    k: &mut dyn FnMut(usize) -> bool,
+) -> bool {
     match node {
-        Node::Literal(c) => input.get(pos).is_some_and(|x| x == c) && k(pos + 1),
+        Node::Literal(c) => {
+            input.get(pos).is_some_and(|x| x == c) && k(pos + 1)
+        }
         Node::Any => pos < input.len() && k(pos + 1),
         Node::Class { negated, items } => {
             let Some(&c) = input.get(pos) else {
@@ -373,8 +396,12 @@ fn match_node(node: &Node, input: &[char], pos: usize, k: &mut dyn FnMut(usize) 
             (hit != *negated) && k(pos + 1)
         }
         Node::Sequence(items) => match_sequence(items, input, pos, k),
-        Node::Alternation(branches) => branches.iter().any(|b| match_node(b, input, pos, k)),
-        Node::Repeat { node, min, max } => match_repeat(node, *min, *max, input, pos, k),
+        Node::Alternation(branches) => {
+            branches.iter().any(|b| match_node(b, input, pos, k))
+        }
+        Node::Repeat { node, min, max } => {
+            match_repeat(node, *min, *max, input, pos, k)
+        }
     }
 }
 
@@ -403,7 +430,15 @@ fn match_repeat(
     if min > 0 {
         return match_node(node, input, pos, &mut |next| {
             // A zero-width match would loop forever without this.
-            next > pos && match_repeat(node, min - 1, max.map(|m| m - 1), input, next, k)
+            next > pos
+                && match_repeat(
+                    node,
+                    min - 1,
+                    max.map(|m| m - 1),
+                    input,
+                    next,
+                    k,
+                )
         });
     }
     if k(pos) {

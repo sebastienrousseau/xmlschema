@@ -99,7 +99,10 @@ pub mod parse;
 pub mod pattern;
 pub mod validate;
 
-pub use model::{AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema, SimpleType};
+pub use model::{
+    AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
+    SimpleType,
+};
 pub use parse::{SchemaError, parse_schema};
 pub use pattern::{Pattern, PatternError};
 pub use validate::{Report, Violation, validate};

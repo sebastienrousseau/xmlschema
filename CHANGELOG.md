@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
-## [Unreleased]
+## [0.0.3] - 2026-08-22
 
 ### Added
 
@@ -66,3 +66,5 @@ suite ships the same version number.
 
 - Initial release: a partial data model of the XSD schema language,
   with no public API.
+
+[0.0.3]: https://github.com/sebastienrousseau/xmlschema/releases/tag/v0.0.3

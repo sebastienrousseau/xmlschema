@@ -7,7 +7,10 @@ use std::collections::BTreeMap;
 
 use oxml::{Document, NodeId};
 
-use crate::model::{AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema, SimpleType};
+use crate::model::{
+    AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
+    SimpleType,
+};
 
 /// Why a schema could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +51,9 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     }
 
     let mut schema = Schema {
-        target_namespace: doc.attribute(root, "targetNamespace").map(str::to_owned),
+        target_namespace: doc
+            .attribute(root, "targetNamespace")
+            .map(str::to_owned),
         elements: BTreeMap::new(),
         named_simple_types: BTreeMap::new(),
     };
@@ -110,7 +115,11 @@ fn parse_occurs(doc: &Document, id: NodeId) -> Occurs {
     Occurs { min, max }
 }
 
-fn parse_element(doc: &Document, id: NodeId, schema: &Schema) -> Result<Particle, SchemaError> {
+fn parse_element(
+    doc: &Document,
+    id: NodeId,
+    schema: &Schema,
+) -> Result<Particle, SchemaError> {
     let Some(name) = doc.attribute(id, "name") else {
         return err("an xs:element has no name");
     };
@@ -129,7 +138,8 @@ fn parse_element(doc: &Document, id: NodeId, schema: &Schema) -> Result<Particle
         Content::Any
     };
 
-    let attributes = if let Some(ct) = first_child_named(doc, id, "complexType") {
+    let attributes = if let Some(ct) = first_child_named(doc, id, "complexType")
+    {
         parse_attributes(doc, ct, schema)
     } else {
         Vec::new()
@@ -156,7 +166,11 @@ fn resolve_named_type(name: &str, schema: &Schema) -> Content {
     })
 }
 
-fn parse_complex_type(doc: &Document, id: NodeId, schema: &Schema) -> Result<Content, SchemaError> {
+fn parse_complex_type(
+    doc: &Document,
+    id: NodeId,
+    schema: &Schema,
+) -> Result<Content, SchemaError> {
     if let Some(seq) = first_child_named(doc, id, "sequence") {
         return Ok(Content::Sequence(parse_particles(doc, seq, schema)?));
     }
@@ -164,7 +178,9 @@ fn parse_complex_type(doc: &Document, id: NodeId, schema: &Schema) -> Result<Con
         return Ok(Content::Choice(parse_particles(doc, choice, schema)?));
     }
     if first_child_named(doc, id, "all").is_some() {
-        return err("xs:all is not supported yet; use xs:sequence or xs:choice");
+        return err(
+            "xs:all is not supported yet; use xs:sequence or xs:choice",
+        );
     }
     if let Some(sc) = first_child_named(doc, id, "simpleContent") {
         // simpleContent restricts or extends a simple type; the
@@ -198,7 +214,11 @@ fn parse_particles(
 /// Infallible for the same reason as `parse_simple_type`: an
 /// attribute without a name is skipped rather than rejected, and every
 /// type resolution degrades to `xs:string`.
-fn parse_attributes(doc: &Document, complex_type: NodeId, schema: &Schema) -> Vec<AttributeDecl> {
+fn parse_attributes(
+    doc: &Document,
+    complex_type: NodeId,
+    schema: &Schema,
+) -> Vec<AttributeDecl> {
     let mut out = Vec::new();
     for attr in children_named(doc, complex_type, "attribute") {
         let Some(name) = doc.attribute(attr, "name") else {
@@ -235,7 +255,11 @@ fn parse_attributes(doc: &Document, complex_type: NodeId, schema: &Schema) -> Ve
 /// Infallible: an unsupported construct (a union or list) degrades to
 /// `xs:string` rather than rejecting the whole schema, so there is no
 /// error path to report.
-fn parse_simple_type(doc: &Document, id: NodeId, schema: &Schema) -> SimpleType {
+fn parse_simple_type(
+    doc: &Document,
+    id: NodeId,
+    schema: &Schema,
+) -> SimpleType {
     let Some(restriction) = first_child_named(doc, id, "restriction") else {
         // A simpleType with a union or list is not supported; treat it
         // as a string rather than rejecting the whole schema.
