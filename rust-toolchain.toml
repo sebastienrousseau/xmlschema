@@ -1,0 +1,13 @@
+# Pinned to an exact version, not `stable`.
+#
+# `stable` resolves to whatever the local rustup last fetched, which is
+# not necessarily what CI installs. That drift is invisible until it
+# bites: a clippy lint added in 1.98 (`chunks_exact_to_as_chunks`) does
+# not exist in 1.97, so the whole suite was green locally and red in CI,
+# and the local run was the one that was wrong.
+#
+# An exact version means `cargo clippy` here and `cargo clippy` there
+# are the same program.
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]
