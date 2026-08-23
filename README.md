@@ -58,7 +58,7 @@
 | Simple types | ✅ nine built-ins, nine restriction facets |
 | `xs:pattern` | ✅ own engine, XSD dialect |
 | Diagnostics | ✅ every violation, each with a path |
-| Tests | ✅ 27 |
+| Tests | ✅ 97 |
 | `xs:all` | ✗ |
 | `xs:import` / `include` | ✗ |
 | Identity constraints | ✗ |
@@ -178,6 +178,140 @@ In order:
 Import mechanisms (`xs:import`, `xs:include`, `xs:redefine`) come after
 the core is correct, because they multiply the surface without adding
 validation power.
+
+
+## Examples
+
+[`examples/`](examples/) is compiled and run in CI.
+
+| Example | What it shows |
+|---|---|
+| [`validate`](examples/validate.rs) | Parsing a schema once, validating many, and reading a `Report` |
+
+```bash
+cargo run --example validate
+```
+
+## Reading a report
+
+`validate` returns a `Report`, not a `Result`. A document can be wrong
+in several independent ways, and stopping at the first means fixing
+them one build at a time.
+
+```text
+/order: missing required attribute `id`
+/order: expected `customer` exactly once, found 0
+/order/line[1]: expected `sku` exactly once, found 0
+/order/line[1]/qty: `many` is not a valid integer
+/order/line[1]/sku: unexpected element `sku`; this content model allows sku, qty in that order
+```
+
+Each `Violation` carries a `path` and a `message`. The path is
+positional — `line[1]` is the first `line` child — so it identifies one
+element rather than a set.
+
+## Migration
+
+### From `xmllint --schema`
+
+| `xmllint` | `xmlschema` |
+|---|---|
+| `xmllint --schema s.xsd --noout f.xml` | `validate(&parse(xml)?, &parse_schema(xsd)?)` |
+| exit status | `report.is_valid()` |
+| stderr text | `report.violations`, each with a path |
+| `--schema` with `xs:import` | not supported yet |
+
+The useful difference is that violations are data rather than a stream
+of text to grep.
+
+### From `libxml`'s `XmlSchemaValidationContext`
+
+| `libxml` | `xmlschema` |
+|---|---|
+| `SchemaParserContext::from_buffer` | `parse_schema` |
+| `SchemaValidationContext::validate_document` | `validate` |
+| error callbacks | `report.violations` |
+| a libxml2 C dependency | none |
+
+`libxml2` implements XSD 1.0 completely and this crate does not — see
+[Status](#status). If you need `xs:import`, identity constraints or
+complex-type derivation today, stay.
+
+## When not to use xmlschema
+
+- **You need complete XSD 1.0.** This is early; check
+  [Status](#status) against your schemas first.
+- **You need XSD 1.1** — assertions, conditional type assignment.
+  Xerces has it.
+- **Your schemas use `xs:import` or `xs:include`.** Not supported;
+  those constructs are skipped, so validation is incomplete rather
+  than wrong.
+- **You need identity constraints** — `xs:key`, `xs:keyref`,
+  `xs:unique`.
+- **You need to validate while streaming.** The document is parsed in
+  full first.
+
+## FAQ
+
+### Why does an unsupported construct get skipped rather than rejected?
+
+Because a schema using one construct this crate lacks would otherwise
+be unusable in full. Skipping means the surrounding rules still apply,
+so a schema with an `xs:all` block validates everything else
+correctly.
+
+The cost is that a document can be reported valid when a construct
+that was skipped would have rejected it. **Validation is incomplete,
+not wrong** — and the distinction matters, so check
+[Status](#status) before relying on a pass.
+
+### Why is `xs:pattern` a hand-written engine?
+
+Because XSD's regular expression dialect is not PCRE and not Rust's
+`regex`. It has different anchoring semantics — the whole value must
+match — its own character-class escapes, and Unicode block and category
+escapes that neither crate spells the same way.
+
+Using a general-purpose engine would mean translating one dialect into
+another and being subtly wrong at the edges. The engine is a few
+hundred lines and does exactly what the specification says.
+
+### Is a schema reusable across documents?
+
+Yes, and that is the intended shape. `parse_schema` is the expensive
+half; `validate` is the half you repeat. A `Schema` is immutable after
+parsing.
+
+### Does it fetch schemas over the network?
+
+No. `parse_schema` takes the schema's *text*. There is no code that
+opens a file or a socket, which is also why `xs:import` and
+`xs:include` are not supported — they name a location to fetch.
+
+When they arrive, the shape will be a caller-supplied map from
+location to content, never a fetch.
+
+### What does a path like `/order/line[1]/qty` mean?
+
+The `qty` child of the first `line` child of `order`. It is positional
+so that it identifies one element and not a set — which is what you
+need when the message is "this one is wrong".
+
+### Does it validate the schema itself?
+
+It rejects a schema that is not well-formed XML, and reports what it
+cannot understand. It does not validate the schema against the XSD
+schema-for-schemas.
+
+### How is this tested?
+
+97 tests over schema parsing, each built-in type, each facet, the
+pattern engine and the validator. The XML underneath carries the W3C
+conformance suite — 2,394 of 2,557 decided tests, zero panics.
+
+There is no XSD conformance suite equivalent in use here yet. That is
+the main gap in this crate's verification and it is worth stating
+plainly.
 
 ## Development
 

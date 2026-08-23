@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-// Copyright (c) 2026 xmlschema. All rights reserved.
+// Copyright (c) 2026 oxml. All rights reserved.
 
-//! Validate a document against a schema and print every violation.
+//! Validating a document against a schema, and reading the report.
+//!
+//! Run with:
 //!
 //! ```text
 //! cargo run --example validate
@@ -9,82 +11,73 @@
 
 use xmlschema::{parse_schema, validate};
 
-const SCHEMA: &str = r#"
+const SCHEMA: &str = r#"<?xml version="1.0"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:simpleType name="currency">
-    <xs:restriction base="xs:string">
-      <xs:pattern value="[A-Z]{3}"/>
-    </xs:restriction>
-  </xs:simpleType>
-
-  <xs:element name="invoice">
+  <xs:element name="order">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="issued" type="xs:date"/>
-        <xs:element name="line" minOccurs="1" maxOccurs="unbounded">
+        <xs:element name="customer" type="xs:string"/>
+        <xs:element name="line" maxOccurs="unbounded">
           <xs:complexType>
             <xs:sequence>
-              <xs:element name="description" type="xs:string"/>
-              <xs:element name="amount">
-                <xs:simpleType>
-                  <xs:restriction base="xs:decimal">
-                    <xs:minExclusive value="0"/>
-                  </xs:restriction>
-                </xs:simpleType>
-              </xs:element>
+              <xs:element name="sku" type="xs:string"/>
+              <xs:element name="qty" type="xs:integer"/>
             </xs:sequence>
-            <xs:attribute name="currency" type="currency" use="required"/>
           </xs:complexType>
         </xs:element>
       </xs:sequence>
+      <xs:attribute name="id" type="xs:string" use="required"/>
     </xs:complexType>
   </xs:element>
-</xs:schema>
-"#;
+</xs:schema>"#;
 
-const GOOD: &str = r#"
-<invoice>
-  <issued>2026-08-22</issued>
-  <line currency="GBP">
-    <description>Consulting</description>
-    <amount>1250.00</amount>
-  </line>
-</invoice>
-"#;
+const VALID: &str = r#"<order id="A-1">
+  <customer>Ada</customer>
+  <line><sku>ABC</sku><qty>2</qty></line>
+  <line><sku>DEF</sku><qty>1</qty></line>
+</order>"#;
 
-// Four separate problems, each of a different kind.
-const BAD: &str = r#"
-<invoice>
-  <issued>22/08/2026</issued>
-  <line currency="pounds">
-    <description>Consulting</description>
-    <amount>-5</amount>
-  </line>
-  <line>
-    <description>Expenses</description>
-    <amount>not a number</amount>
-  </line>
-</invoice>
-"#;
+/// Missing the required attribute, an element out of order, and a
+/// value that is not an integer.
+const INVALID: &str = r"<order>
+  <line><qty>many</qty><sku>ABC</sku></line>
+  <customer>Ada</customer>
+</order>";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // A schema is parsed once and reused. Parsing is the expensive
+    // half; validating is the half you repeat.
     let schema = parse_schema(SCHEMA)?;
 
-    for (label, xml) in [("conforming", GOOD), ("broken", BAD)] {
-        println!("== {label} ==");
-        let doc = oxml::parse(xml)?;
-        let report = validate(&doc, &schema);
+    println!("== a conforming document ==");
+    let doc = oxml::parse(VALID)?;
+    let report = validate(&doc, &schema);
+    println!("  valid: {}", report.is_valid());
+    assert!(report.is_valid(), "the document conforms");
 
-        if report.is_valid() {
-            println!("  valid\n");
-            continue;
-        }
-        println!("  {} violation(s):", report.violations.len());
-        for v in &report.violations {
-            println!("    {} — {}", v.path, v.message);
-        }
-        println!();
+    println!("\n== a document with several problems ==");
+    let doc = oxml::parse(INVALID)?;
+    let report = validate(&doc, &schema);
+    println!("  valid: {}", report.is_valid());
+    assert!(!report.is_valid());
+
+    // Every violation is reported, not just the first. A document can
+    // be wrong in several independent ways, and fixing them one build
+    // at a time is miserable.
+    for violation in &report.violations {
+        println!("  {}: {}", violation.path, violation.message);
     }
+    assert!(
+        report.violations.len() > 1,
+        "every violation, not only the first"
+    );
 
+    println!("\n== a schema that does not parse ==");
+    // A malformed schema is a different failure from an invalid
+    // document, and has its own error type.
+    match parse_schema("<xs:schema") {
+        Ok(_) => println!("  unexpectedly parsed"),
+        Err(e) => println!("  {e}"),
+    }
     Ok(())
 }
