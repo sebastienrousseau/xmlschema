@@ -79,7 +79,9 @@ fn repeated_elements_within_bounds_are_valid() {
 
 #[test]
 fn a_missing_required_attribute_is_reported_with_its_path() {
-    let report = check(r"<library><book><title>A</title><year>2000</year></book></library>");
+    let report = check(
+        r"<library><book><title>A</title><year>2000</year></book></library>",
+    );
     assert_eq!(report.violations.len(), 1);
     assert_eq!(report.violations[0].path, "/library/book[1]");
     assert!(
@@ -91,8 +93,9 @@ fn a_missing_required_attribute_is_reported_with_its_path() {
 
 #[test]
 fn an_enumeration_violation_names_the_permitted_values() {
-    let report =
-        check(r#"<library><book lang="es"><title>A</title><year>2000</year></book></library>"#);
+    let report = check(
+        r#"<library><book lang="es"><title>A</title><year>2000</year></book></library>"#,
+    );
     assert_eq!(report.violations.len(), 1);
     assert_eq!(report.violations[0].path, "/library/book[1]/@lang");
     let m = &report.violations[0].message;
@@ -115,20 +118,23 @@ fn a_pattern_violation_is_reported() {
 
 #[test]
 fn numeric_bounds_are_enforced() {
-    let too_old =
-        check(r#"<library><book lang="en"><title>A</title><year>1200</year></book></library>"#);
+    let too_old = check(
+        r#"<library><book lang="en"><title>A</title><year>1200</year></book></library>"#,
+    );
     assert_eq!(too_old.violations.len(), 1);
     assert!(too_old.violations[0].message.contains("1450"));
 
-    let ok =
-        check(r#"<library><book lang="en"><title>A</title><year>1450</year></book></library>"#);
+    let ok = check(
+        r#"<library><book lang="en"><title>A</title><year>1450</year></book></library>"#,
+    );
     assert!(ok.is_valid(), "{ok}");
 }
 
 #[test]
 fn a_non_integer_where_an_integer_is_required_is_reported() {
-    let report =
-        check(r#"<library><book lang="en"><title>A</title><year>MCMLXV</year></book></library>"#);
+    let report = check(
+        r#"<library><book lang="en"><title>A</title><year>MCMLXV</year></book></library>"#,
+    );
     assert_eq!(report.violations.len(), 1);
     assert!(
         report.violations[0].message.contains("integer"),
@@ -164,8 +170,9 @@ fn an_unexpected_element_names_what_was_allowed() {
 /// should not blame cardinality for it.
 #[test]
 fn out_of_order_children_are_reported() {
-    let report =
-        check(r#"<library><book lang="en"><year>2000</year><title>A</title></book></library>"#);
+    let report = check(
+        r#"<library><book lang="en"><year>2000</year><title>A</title></book></library>"#,
+    );
     assert!(!report.is_valid());
 }
 
@@ -226,7 +233,8 @@ fn choice_accepts_any_declared_branch() {
         assert!(validate(&doc, &schema).is_valid(), "{xml}");
     }
 
-    let doc = oxml::parse("<payment><cheque>z</cheque></payment>").expect("parses");
+    let doc =
+        oxml::parse("<payment><cheque>z</cheque></payment>").expect("parses");
     let report = validate(&doc, &schema);
     assert_eq!(report.violations.len(), 1);
     assert!(report.violations[0].message.contains("card"));

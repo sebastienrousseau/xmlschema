@@ -1,1 +1,6 @@
-# default
+# Pinned so formatting does not depend on a developer's global
+# ~/.rustfmt.toml. Without this, `cargo fmt --check` can pass locally
+# against a config CI has never seen — and nightly-only options in a
+# global config are silently ignored on stable, so the two disagree.
+edition = "2024"
+max_width = 80
