@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.4] - 2026-08-24
+
+### Changed
+
+- Built against `oxml` 0.0.4, which resolves XPath namespace prefixes,
+  normalises line endings and attribute values, and reaches 98.6% of
+  decided W3C conformance tests. This crate has no expression surface,
+  so nothing here changes for callers.
+
 ## [0.0.3] - 2026-08-22
 
 ### Added
