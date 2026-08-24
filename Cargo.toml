@@ -1,6 +1,6 @@
 [package]
 name = "xmlschema"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 rust-version = "1.86.0"
 license = "MIT OR Apache-2.0"
@@ -24,7 +24,7 @@ include = [
 ]
 
 [dependencies]
-oxml = { version = "0.0.3", default-features = false, features = ["std"] }
+oxml = { version = "0.0.4", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 
