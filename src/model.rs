@@ -160,6 +160,13 @@ pub enum Content {
     Simple(Box<SimpleType>),
     /// Children must appear in this order.
     Sequence(Vec<Particle>),
+    /// Children may appear in any order, each at most once.
+    ///
+    /// `xs:all` is not a `Sequence` with relaxed ordering: its
+    /// particles are limited to `maxOccurs="1"`, and validating it as
+    /// a sequence rejects a document whose children are simply in a
+    /// different order.
+    All(Vec<Particle>),
     /// Exactly one branch must match.
     Choice(Vec<Particle>),
     /// Any content is accepted. Used for `xs:any` and for element
@@ -180,6 +187,10 @@ pub struct Particle {
     pub content: Box<Content>,
     /// Its attribute declarations.
     pub attributes: Vec<AttributeDecl>,
+    /// `@fixed` — the element's content must equal this exactly.
+    pub fixed: Option<String>,
+    /// `@nillable` — `xsi:nil="true"` may stand in for content.
+    pub nillable: bool,
 }
 
 /// An attribute declaration.
@@ -191,6 +202,10 @@ pub struct AttributeDecl {
     pub required: bool,
     /// The type its value must satisfy.
     pub simple_type: SimpleType,
+    /// `@fixed` — if present, the value must equal this exactly.
+    pub fixed: Option<String>,
+    /// `@use="prohibited"` — the attribute must *not* appear.
+    pub prohibited: bool,
 }
 
 /// A parsed schema.
@@ -202,6 +217,8 @@ pub struct Schema {
     pub elements: BTreeMap<String, Particle>,
     /// Named top-level simple types, by local name.
     pub named_simple_types: BTreeMap<String, SimpleType>,
+    /// Named top-level complex types, by local name.
+    pub named_complex_types: BTreeMap<String, Content>,
 }
 
 impl Schema {

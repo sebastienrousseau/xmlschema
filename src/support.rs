@@ -56,6 +56,10 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "annotation",
     "documentation",
     "appinfo",
+    "all",
+    "group",
+    "attributeGroup",
+    "complexContent",
     // Facets, handled below by name.
     "enumeration",
     "pattern",
@@ -122,22 +126,6 @@ fn check_element(
     // A `sequence` or `choice` yields only its *element* children, so
     // a nested model group inside one is dropped along with every
     // constraint it carries.
-    if name == "sequence" || name == "choice" {
-        for &child in doc.children(id) {
-            let Some(local) = doc.element_name(child).map(|n| &n.local) else {
-                continue;
-            };
-            if local != "element" && local != "annotation" {
-                out.push(Unsupported {
-                    construct: format!("xs:{local} inside xs:{name}"),
-                    effect: "nested model groups are dropped, so their \
-                             particles are not enforced"
-                        .to_owned(),
-                });
-            }
-        }
-    }
-
     // A type reference is resolved against the built-ins and this
     // schema's named simple types; anything else becomes "accepts
     // anything".
@@ -153,10 +141,8 @@ fn check_element(
     // Attributes that change what a declaration means, none of which
     // this crate reads.
     for (attribute, effect) in [
-        ("nillable", "xsi:nil is not honoured"),
         ("abstract", "the declaration is used as if it were concrete"),
         ("substitutionGroup", "substitution is not applied"),
-        ("fixed", "the fixed value is not enforced"),
         ("default", "the default value is not supplied"),
         ("form", "qualification is not applied"),
         ("block", "the blocking constraint is not applied"),
@@ -165,7 +151,6 @@ fn check_element(
             "mixed",
             "mixed content is not distinguished from element-only",
         ),
-        ("ref", "the reference is not resolved"),
     ] {
         if doc.attribute(id, attribute).is_some() {
             out.push(Unsupported {
@@ -173,15 +158,6 @@ fn check_element(
                 effect: (*effect).to_owned(),
             });
         }
-    }
-
-    // `use="prohibited"` and `use="required"` differ, and only the
-    // latter is read.
-    if name == "attribute" && doc.attribute(id, "use") == Some("prohibited") {
-        out.push(Unsupported {
-            construct: "@use=\"prohibited\"".to_owned(),
-            effect: "a prohibited attribute is not rejected".to_owned(),
-        });
     }
 }
 

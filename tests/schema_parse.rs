@@ -7,7 +7,7 @@
 //! empty schema is the worst outcome available: every document then
 //! validates, and the caller believes it was checked.
 
-use xmlschema::{Content, parse_schema};
+use xmlschema::{Content, parse_schema, validate};
 
 fn schema(body: &str) -> String {
     format!(
@@ -123,18 +123,34 @@ fn an_unparseable_cardinality_falls_back_rather_than_failing() {
 }
 
 #[test]
-fn xs_all_is_rejected_rather_than_silently_ignored() {
-    // Accepting it and validating nothing would be worse than refusing:
-    // the caller would believe the constraint was enforced.
-    let e = parse_schema(&schema(
+fn xs_all_permits_any_order_and_forbids_repetition() {
+    // This used to assert that `xs:all` was *rejected*, on the
+    // reasoning that accepting it and validating nothing would be
+    // worse than refusing. That was right while it was unimplemented.
+    // It is implemented now, and the property worth pinning is that it
+    // is not a sequence with the ordering relaxed.
+    let s = parse_schema(&schema(
         r#"<xs:element name="r">
              <xs:complexType><xs:all>
                <xs:element name="a" type="xs:string"/>
+               <xs:element name="b" type="xs:string"/>
              </xs:all></xs:complexType>
            </xs:element>"#,
     ))
-    .expect_err("xs:all is unsupported");
-    assert!(e.to_string().to_lowercase().contains("all"), "{e}");
+    .expect("xs:all parses");
+
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &s).is_valid()
+    };
+    assert!(valid("<r><a>1</a><b>2</b></r>"), "declared order");
+    assert!(valid("<r><b>2</b><a>1</a></r>"), "any order is the point");
+    assert!(!valid("<r><a>1</a><a>2</a><b>3</b></r>"), "at most once");
+    assert!(!valid("<r><a>1</a></r>"), "b is required");
+    assert!(
+        !valid("<r><a>1</a><b>2</b><c>3</c></r>"),
+        "c is not declared"
+    );
 }
 
 #[test]

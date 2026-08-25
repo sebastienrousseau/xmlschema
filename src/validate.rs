@@ -112,6 +112,38 @@ impl Validator<'_> {
     fn check_element(&mut self, node: NodeId, decl: &Particle, path: &str) {
         self.check_attributes(node, decl, path);
 
+        // `xsi:nil="true"` stands in for content, but only where the
+        // declaration allows it. Where it does, the element must be
+        // empty and its content model is not applied.
+        let nil = self
+            .doc
+            .attribute(node, "nil")
+            .or_else(|| self.doc.attribute(node, "xsi:nil"))
+            == Some("true");
+        if nil {
+            if !decl.nillable {
+                self.violate(path, "this element is not nillable".to_owned());
+            } else if !self.doc.text(node).trim().is_empty() {
+                self.violate(path, "a nilled element must be empty".to_owned());
+            }
+            return;
+        }
+
+        // A fixed value constrains the element's character content
+        // exactly, whatever else its type permits.
+        if let Some(fixed) = decl.fixed.as_deref() {
+            let text = self.doc.text(node);
+            if text.trim() != fixed {
+                self.violate(
+                    path,
+                    format!(
+                        "must be the fixed value `{fixed}`, not `{}`",
+                        text.trim()
+                    ),
+                );
+            }
+        }
+
         match &*decl.content {
             Content::Any => {}
             Content::Empty => {
@@ -148,6 +180,9 @@ impl Validator<'_> {
             }
             Content::Choice(branches) => {
                 self.check_choice(node, branches, path);
+            }
+            Content::All(particles) => {
+                self.check_all(node, particles, path);
             }
         }
     }
@@ -274,9 +309,28 @@ impl Validator<'_> {
     fn check_attributes(&mut self, node: NodeId, decl: &Particle, path: &str) {
         for want in &decl.attributes {
             match self.doc.attribute(node, &want.name) {
+                Some(_) if want.prohibited => {
+                    self.violate(
+                        path,
+                        format!("attribute `{}` is prohibited here", want.name),
+                    );
+                }
                 Some(value) => {
                     if let Err(why) = check_simple(value, &want.simple_type) {
                         self.violate(&format!("{path}/@{}", want.name), why);
+                    }
+                    // A fixed value is not a default: if the attribute
+                    // appears at all, it must be exactly this.
+                    if let Some(fixed) = want.fixed.as_deref() {
+                        if value != fixed {
+                            self.violate(
+                                &format!("{path}/@{}", want.name),
+                                format!(
+                                    "must be the fixed value `{fixed}`, \
+                                     not `{value}`"
+                                ),
+                            );
+                        }
                     }
                 }
                 None if want.required => {
@@ -286,6 +340,59 @@ impl Validator<'_> {
                     );
                 }
                 None => {}
+            }
+        }
+    }
+
+    /// `xs:all` — every declared child may appear in any order, and
+    /// each at most once.
+    ///
+    /// Not a sequence with the ordering relaxed: validating it as one
+    /// rejects a document whose children are simply in a different
+    /// order, which is the entire point of the construct.
+    fn check_all(&mut self, node: NodeId, particles: &[Particle], path: &str) {
+        let kids: Vec<NodeId> = self
+            .doc
+            .children(node)
+            .iter()
+            .copied()
+            .filter(|&c| self.doc.is_element(c))
+            .collect();
+
+        let mut counts: Vec<usize> = vec![0; particles.len()];
+        for child in kids {
+            let name = self
+                .doc
+                .element_name(child)
+                .map(|n| n.local.clone())
+                .unwrap_or_default();
+            match particles.iter().position(|p| p.name == name) {
+                Some(index) => {
+                    counts[index] += 1;
+                    if counts[index] > 1 {
+                        self.violate(
+                            path,
+                            format!("`{name}` appears more than once"),
+                        );
+                    } else {
+                        let child_path = format!("{path}/{name}");
+                        self.check_element(
+                            child,
+                            &particles[index],
+                            &child_path,
+                        );
+                    }
+                }
+                None => self
+                    .violate(path, format!("`{name}` is not permitted here")),
+            }
+        }
+        for (particle, seen) in particles.iter().zip(&counts) {
+            if *seen == 0 && particle.occurs.min > 0 {
+                self.violate(
+                    path,
+                    format!("missing required `{}`", particle.name),
+                );
             }
         }
     }
