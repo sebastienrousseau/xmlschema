@@ -391,84 +391,70 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
     Ok(())
 }
 
-/// The namespaces a wildcard admits, as written.
-fn namespaces(doc: &Document, wildcard: NodeId) -> &str {
-    doc.attribute(wildcard, "namespace").unwrap_or("##any")
-}
-
-/// Whether `derived` admits no more namespaces than `base`.
-fn namespace_subset(derived: &str, base: &str) -> bool {
-    // Anything is within `##any`, and only `##any` contains itself.
-    if base == "##any" {
-        return true;
-    }
-    if derived == "##any" {
-        return false;
-    }
-    if base == derived {
-        return true;
-    }
-    if base == "##other" {
-        // A named list may or may not avoid the target namespace;
-        // deciding needs the target, so this is left alone rather
-        // than guessed.
-        return true;
-    }
-    // Both are explicit lists.
-    let allowed: Vec<&str> = base.split_whitespace().collect();
-    derived.split_whitespace().all(|n| allowed.contains(&n))
-}
-
-/// The single wildcard a content model consists of, if that is all it
-/// is.
+/// Derivation Valid (Restriction): a restriction must accept nothing
+/// its base would reject.
 ///
-/// A model group holding exactly one `xs:any` and nothing else. The
-/// derivation rules for anything richer need a subsumption check
-/// between whole content models, which this crate does not have.
-fn sole_wildcard(doc: &Document, host: NodeId) -> Option<NodeId> {
-    let group = ["sequence", "choice", "all"]
-        .into_iter()
-        .find_map(|g| first_child_named(doc, host, g))?;
-    let mut particles = doc
-        .children(group)
-        .iter()
-        .copied()
-        .filter(|&c| local_name(doc, c).is_some_and(|n| n != "annotation"));
-    let first = particles.next()?;
-    if particles.next().is_some() || local_name(doc, first) != Some("any") {
-        return None;
-    }
-    Some(first)
-}
-
-/// Derivation Valid (Restriction), for the part expressible without a
-/// full subsumption check.
-///
-/// A restriction narrows its base. Where both content models are a
-/// single wildcard, that has one concrete meaning checkable here: the
-/// derived wildcard may not admit a namespace the base excludes.
-///
-/// It does **not** constrain `processContents`. The first edition
-/// required the derived wildcard to validate at least as strictly, and
-/// the second-edition errata removed that clause -- so
-/// `processContents="lax"` restricting a `strict` base is valid.
-/// Enforcing the original rule rejected seven schemas the suite calls
-/// valid, which is how the errata came to light.
-///
-/// Richer content models need a subsumption relation between
-/// particles -- the specification's *Particle Valid (Restriction)* --
-/// which this crate does not implement, so they are left alone rather
-/// than approximated.
+/// The relation itself lives in [`crate::derive`]; this resolves the
+/// base type and hands both content models to it.
 fn check_derivation(doc: &Document, tops: &Tops) -> Result<(), SchemaError> {
+    // A substitution group makes an element particle stand for every
+    // member of the group, so a restriction replacing `ref="head"`
+    // with a choice of its members is valid -- and looks like a name
+    // mismatch to a relation that does not model substitution. This
+    // crate does not, and `support::unsupported` says so, which makes
+    // declining to decide the honest answer rather than a wrong one.
+    if doc
+        .descendants()
+        .any(|id| doc.attribute(id, "substitutionGroup").is_some())
+    {
+        return Ok(());
+    }
+
+    let groups = |name: &str| tops.groups.get(name).copied();
+    // Whether one named complex type derives from another, by walking
+    // the `complexContent` base chain. Undecidable cases answer
+    // false, and the caller treats that as "accept" rather than
+    // "reject".
+    let type_derives = |derived: &str, base: &str| -> bool {
+        // Only a complex type has a chain to walk. Narrowing a
+        // simple type -- a union to one of its members, say -- is a
+        // valid derivation this crate cannot establish, so it is
+        // accepted rather than rejected.
+        if !tops.complex_types.contains_key(derived) {
+            return true;
+        }
+        let mut at = tops.complex_types.get(derived).copied();
+        for _ in 0..32 {
+            let Some(node) = at else { return false };
+            let Some(next) = ["complexContent", "simpleContent"]
+                .into_iter()
+                .find_map(|w| first_child_named(doc, node, w))
+                .and_then(|w| {
+                    ["extension", "restriction"]
+                        .into_iter()
+                        .find_map(|k| first_child_named(doc, w, k))
+                })
+                .and_then(|d| doc.attribute(d, "base"))
+            else {
+                return false;
+            };
+            let local = next.rsplit(':').next().unwrap_or(next);
+            if local == base {
+                return true;
+            }
+            at = tops.complex_types.get(local).copied();
+        }
+        false
+    };
+
     for id in doc.descendants() {
         if local_name(doc, id) != Some("restriction") {
             continue;
         }
         // Only a complexContent restriction derives a content model.
-        let inside_complex_content =
-            doc.parent(id).and_then(|p| local_name(doc, p))
-                == Some("complexContent");
-        if !inside_complex_content {
+        if doc.parent(id).and_then(|p| local_name(doc, p))
+            != Some("complexContent")
+        {
             continue;
         }
         let Some(base_name) = doc.attribute(id, "base") else {
@@ -478,16 +464,24 @@ fn check_derivation(doc: &Document, tops: &Tops) -> Result<(), SchemaError> {
         let Some(&base_node) = tops.complex_types.get(local) else {
             continue;
         };
-        let (Some(derived), Some(base)) =
-            (sole_wildcard(doc, id), sole_wildcard(doc, base_node))
-        else {
+
+        let model = |host: NodeId| {
+            doc.children(host)
+                .iter()
+                .copied()
+                .find_map(|c| crate::derive::particle_of(doc, c, &groups, 0))
+        };
+        // A base or derivation with no content model at all says
+        // nothing about the other.
+        let (Some(derived), Some(base)) = (model(id), model(base_node)) else {
             continue;
         };
 
-        if !namespace_subset(namespaces(doc, derived), namespaces(doc, base)) {
+        if !crate::derive::is_valid_restriction(&derived, &base, &type_derives)
+        {
             return err(format!(
-                "a restriction of `{base_name}` may not admit namespaces \
-                 the base excludes"
+                "this content model is not a valid restriction of \
+                 `{base_name}`"
             ));
         }
     }
