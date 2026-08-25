@@ -218,3 +218,220 @@ fn an_unrecognised_base_type_falls_back_to_string() {
     assert!(accepts(&s, "ab"));
     assert!(!accepts(&s, "a"));
 }
+
+/// `xs:totalDigits` and `xs:fractionDigits` count *significant*
+/// digits, which is a property of the value and not of how it was
+/// written.
+#[test]
+fn digit_facets_count_significant_digits() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:decimal">
+        <xs:totalDigits value="3"/>
+        <xs:fractionDigits value="1"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("12.3"), "three total, one fraction");
+    assert!(
+        accepts("1.0"),
+        "trailing fraction zeros are not significant"
+    );
+    assert!(accepts("012.3"), "leading zeros are not significant");
+    assert!(accepts("0"), "zero has one significant digit");
+    assert!(accepts("-12.3"), "the sign is not a digit");
+    assert!(!accepts("1234"), "four total digits");
+    assert!(!accepts("1.23"), "two fraction digits");
+}
+
+/// `xs:whiteSpace` decides what the value *is*, so it applies before
+/// every other check.
+#[test]
+fn the_whitespace_facet_applies_before_validation() {
+    let with = |rule: &str| {
+        format!(
+            r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:whiteSpace value="{rule}"/>
+        <xs:maxLength value="3"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#
+        )
+    };
+    let accepts = |rule: &str, v: &str| {
+        let schema = parse_schema(&with(rule)).expect("schema parses");
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    // "  a  " is five characters preserved, one collapsed.
+    assert!(!accepts("preserve", "  a  "), "five characters");
+    assert!(accepts("collapse", "  a  "), "collapses to one");
+    // Replace turns tabs into spaces without collapsing them.
+    assert!(!accepts("replace", "\ta\tb\t"), "still five characters");
+    assert!(accepts("collapse", "\ta\tb\t"), "collapses to three");
+}
+
+/// Bounds apply to dates, times and durations, not only to numbers.
+///
+/// They were stored as `f64`, so `minInclusive="2000-01-01"` failed to
+/// parse and the facet was dropped in silence — the schema looked
+/// constrained and enforced nothing.
+#[test]
+fn bounds_apply_to_temporal_types() {
+    let bounded = |ty: &str, min: &str, max: &str| {
+        format!(
+            r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:{ty}">
+        <xs:minInclusive value="{min}"/>
+        <xs:maxInclusive value="{max}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#
+        )
+    };
+    let accepts = |ty: &str, min: &str, max: &str, v: &str| {
+        let schema = parse_schema(&bounded(ty, min, max)).expect("parses");
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+
+    // date
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-06-15"));
+    assert!(!accepts("date", "2000-01-01", "2000-12-31", "1999-12-31"));
+    assert!(!accepts("date", "2000-01-01", "2000-12-31", "2001-01-01"));
+    // The boundaries themselves are inclusive.
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-01-01"));
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-12-31"));
+
+    // dateTime orders within a day, not just across days.
+    assert!(accepts(
+        "dateTime",
+        "2000-01-01T00:00:00",
+        "2000-01-01T12:00:00",
+        "2000-01-01T06:00:00"
+    ));
+    assert!(!accepts(
+        "dateTime",
+        "2000-01-01T00:00:00",
+        "2000-01-01T12:00:00",
+        "2000-01-01T18:00:00"
+    ));
+
+    // duration, where a year outranks a day.
+    assert!(accepts("duration", "P1D", "P1Y", "P6M"));
+    assert!(!accepts("duration", "P1D", "P1Y", "P2Y"));
+
+    // gYear and gMonth are ordered too.
+    assert!(accepts("gYear", "1999", "2001", "2000"));
+    assert!(!accepts("gYear", "1999", "2001", "2002"));
+    assert!(accepts("gMonth", "--03", "--09", "--06"));
+    assert!(!accepts("gMonth", "--03", "--09", "--11"));
+
+    // And the numeric case still works.
+    assert!(accepts("integer", "1", "10", "5"));
+    assert!(!accepts("integer", "1", "10", "11"));
+}
+
+/// Decimals compare exactly, not through `f64`.
+///
+/// `xs:integer` is unbounded and `xs:decimal` has no precision limit,
+/// so an eighteen-digit bound compared through a float made two
+/// distinct values equal — and a value that must be *less than* its
+/// neighbour was reported as violating it.
+#[test]
+fn large_decimals_compare_without_losing_precision() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:integer">
+        <xs:maxExclusive value="999999999999999999"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    // Both are past 2^53, where an f64 cannot tell them apart.
+    assert!(accepts("999999999999999998"), "one less than the bound");
+    assert!(!accepts("999999999999999999"), "the bound is exclusive");
+    assert!(!accepts("1000000000000000000"), "past the bound");
+    // Sign, leading zeros and trailing fraction zeros do not change
+    // the value.
+    assert!(accepts("-999999999999999999"));
+    assert!(accepts("000000000000000001"));
+}
+
+/// A pattern on a list constrains the whole space-separated value.
+///
+/// It was not applied at all, which left every `list-<type>-pattern`
+/// schema accepting anything — around five hundred tests in the W3C
+/// suite.
+#[test]
+fn a_pattern_on_a_list_applies_to_the_whole_value() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction>
+        <xs:simpleType><xs:list itemType="xs:integer"/></xs:simpleType>
+        <xs:pattern value="[0-9]+ [0-9]+"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("12 34"), "two integers, as the pattern requires");
+    assert!(!accepts("12"), "one item does not match the whole form");
+    assert!(!accepts("12 34 56"), "three do not either");
+}
+
+/// `xs:NMTOKENS` is a list type, so its length facets count items.
+#[test]
+fn built_in_list_types_count_items_not_characters() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:NMTOKENS">
+        <xs:minLength value="2"/>
+        <xs:maxLength value="3"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("aa bb"), "two items");
+    assert!(accepts("aa bb cc"), "three items");
+    // One item, but four characters — a character count would pass it.
+    assert!(!accepts("abcd"), "one item is fewer than two");
+    assert!(!accepts("a b c d"), "four items is more than three");
+}

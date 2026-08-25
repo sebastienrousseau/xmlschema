@@ -94,14 +94,16 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod datatype;
 pub mod model;
 pub mod parse;
 pub mod pattern;
+pub mod support;
 pub mod validate;
 
 pub use model::{
-    AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
-    SimpleType,
+    AttributeDecl, BuiltIn, Content, Facets, NamespaceConstraint, Occurs,
+    Particle, ProcessContents, Schema, SimpleType, Variety, Wildcard,
 };
 pub use parse::{SchemaError, parse_schema};
 pub use pattern::{Pattern, PatternError};

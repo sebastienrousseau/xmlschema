@@ -7,7 +7,7 @@
 //! empty schema is the worst outcome available: every document then
 //! validates, and the caller believes it was checked.
 
-use xmlschema::{Content, parse_schema};
+use xmlschema::{Content, parse_schema, validate};
 
 fn schema(body: &str) -> String {
     format!(
@@ -65,9 +65,44 @@ fn a_non_schema_root_is_rejected() {
 }
 
 #[test]
-fn a_schema_with_no_top_level_elements_is_rejected() {
-    let e = parse_schema(&schema("")).expect_err("nothing declared");
-    assert!(e.to_string().contains("top-level"), "{e}");
+fn a_schema_need_not_declare_a_top_level_element() {
+    // This used to assert the opposite. A schema whose purpose is to
+    // be imported declares types, groups or attributes and no
+    // elements at all, and refusing those rejected 282 schemas the
+    // W3C suite calls valid.
+    let only_a_type = parse_schema(&schema(
+        r#"<xs:simpleType name="code">
+             <xs:restriction base="xs:string">
+               <xs:maxLength value="4"/>
+             </xs:restriction>
+           </xs:simpleType>"#,
+    ))
+    .expect("a schema of types alone is valid");
+    assert!(only_a_type.elements.is_empty());
+    assert!(only_a_type.named_simple_types.contains_key("code"));
+
+    // An entirely empty schema is still a schema.
+    assert!(parse_schema(&schema("")).is_ok());
+}
+
+/// A reference this schema cannot resolve names something in an
+/// imported namespace, which is unenforceable here -- not invalid.
+#[test]
+fn an_unresolvable_reference_is_not_a_schema_error() {
+    let s = parse_schema(&schema(
+        r#"<xs:element name="r">
+             <xs:complexType><xs:sequence>
+               <xs:element ref="other:thing"/>
+             </xs:sequence></xs:complexType>
+           </xs:element>"#,
+    ))
+    .expect("an unresolved ref does not invalidate the schema");
+
+    // It keeps its name and cardinality so ordering still works, and
+    // accepts any content because there is nothing to check against.
+    let doc = oxml::parse("<r><thing>anything at all</thing></r>")
+        .expect("well-formed");
+    assert!(validate(&doc, &s).is_valid());
 }
 
 #[test]
@@ -123,18 +158,34 @@ fn an_unparseable_cardinality_falls_back_rather_than_failing() {
 }
 
 #[test]
-fn xs_all_is_rejected_rather_than_silently_ignored() {
-    // Accepting it and validating nothing would be worse than refusing:
-    // the caller would believe the constraint was enforced.
-    let e = parse_schema(&schema(
+fn xs_all_permits_any_order_and_forbids_repetition() {
+    // This used to assert that `xs:all` was *rejected*, on the
+    // reasoning that accepting it and validating nothing would be
+    // worse than refusing. That was right while it was unimplemented.
+    // It is implemented now, and the property worth pinning is that it
+    // is not a sequence with the ordering relaxed.
+    let s = parse_schema(&schema(
         r#"<xs:element name="r">
              <xs:complexType><xs:all>
                <xs:element name="a" type="xs:string"/>
+               <xs:element name="b" type="xs:string"/>
              </xs:all></xs:complexType>
            </xs:element>"#,
     ))
-    .expect_err("xs:all is unsupported");
-    assert!(e.to_string().to_lowercase().contains("all"), "{e}");
+    .expect("xs:all parses");
+
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &s).is_valid()
+    };
+    assert!(valid("<r><a>1</a><b>2</b></r>"), "declared order");
+    assert!(valid("<r><b>2</b><a>1</a></r>"), "any order is the point");
+    assert!(!valid("<r><a>1</a><a>2</a><b>3</b></r>"), "at most once");
+    assert!(!valid("<r><a>1</a></r>"), "b is required");
+    assert!(
+        !valid("<r><a>1</a><b>2</b><c>3</c></r>"),
+        "c is not declared"
+    );
 }
 
 #[test]
@@ -226,4 +277,153 @@ fn the_error_type_displays_its_message() {
     let e = parse_schema("<html/>").expect_err("not a schema");
     assert_eq!(e.to_string(), format!("{e}"));
     assert!(!format!("{e}").is_empty());
+}
+
+/// A schema is itself an XML document with a content model, and one
+/// that breaks it is invalid however sensible its declarations look.
+#[test]
+fn a_schema_breaking_xsds_own_structure_is_rejected() {
+    // Two annotations, where at most one is permitted.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+                 <xs:annotation><xs:documentation>b</xs:documentation></xs:annotation>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "at most one xs:annotation"
+    );
+
+    // An annotation that is not first.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:simpleContent><xs:extension base="xs:string"/></xs:simpleContent>
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "xs:annotation must come first"
+    );
+
+    // Mutually exclusive children.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:sequence/>
+                 <xs:choice/>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "a complexType has one content model, not two"
+    );
+
+    // Both a named type and an inline one.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="e" type="xs:string">
+                 <xs:simpleType><xs:restriction base="xs:string"/></xs:simpleType>
+               </xs:element>"#,
+        ))
+        .is_err(),
+        "a type attribute excludes an inline type"
+    );
+
+    // Both `name` and `ref`.
+    assert!(
+        parse_schema(&schema(r#"<xs:element name="e" ref="other"/>"#,))
+            .is_err(),
+        "name and ref are exclusive"
+    );
+
+    // And a well-formed schema still parses.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+                 <xs:sequence/>
+               </xs:complexType>"#,
+        ))
+        .is_ok(),
+        "one annotation, first, with one content model"
+    );
+}
+
+/// A wildcard's namespace constraint takes four forms.
+#[test]
+fn a_wildcard_namespace_constraint_is_read_in_every_form() {
+    let with = |ns: &str| {
+        format!(
+            r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                          targetNamespace="urn:t" xmlns:t="urn:t">
+                 <xs:element name="r">
+                   <xs:complexType><xs:sequence>
+                     <xs:any namespace='{ns}'  processContents="skip"/>
+                   </xs:sequence></xs:complexType>
+                 </xs:element>
+               </xs:schema>"#
+        )
+    };
+    // Each form parses; `##other` and a list are the ones that were
+    // never exercised.
+    for ns in [
+        "##any",
+        "##other",
+        "urn:a urn:b",
+        "##targetNamespace ##local",
+    ] {
+        assert!(parse_schema(&with(ns)).is_ok(), "namespace={ns}");
+    }
+    // A wildcard with no `namespace` attribute means `##any`.
+    let bare = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="r">
+          <xs:complexType><xs:sequence><xs:any/></xs:sequence></xs:complexType>
+        </xs:element></xs:schema>"#;
+    assert!(parse_schema(bare).is_ok());
+}
+
+/// `##other` admits anything outside the target namespace, which
+/// includes an unqualified element.
+#[test]
+fn other_excludes_only_the_target_namespace() {
+    let xsd = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                             targetNamespace="urn:t"
+                             xmlns:t="urn:t"
+                             elementFormDefault="qualified">
+        <xs:element name="r">
+          <xs:complexType><xs:sequence>
+            <xs:any namespace='##other' processContents="skip"/>
+          </xs:sequence></xs:complexType>
+        </xs:element></xs:schema>"#;
+    let s = parse_schema(xsd).expect("schema parses");
+    let ok =
+        oxml::parse(r#"<r xmlns="urn:t"><foo xmlns="urn:elsewhere"/></r>"#)
+            .expect("well-formed");
+    assert!(
+        validate(&ok, &s).is_valid(),
+        "a foreign namespace is admitted"
+    );
+
+    let no = oxml::parse(r#"<r xmlns="urn:t"><foo xmlns="urn:t"/></r>"#)
+        .expect("well-formed");
+    assert!(!validate(&no, &s).is_valid(), "the target namespace is not");
+}
+
+/// A document that is not a schema is rejected, and says why.
+#[test]
+fn a_document_that_is_not_a_schema_is_rejected() {
+    // Well-formed XML, but not an xs:schema.
+    let e = parse_schema("<notSchema/>").expect_err("not a schema");
+    assert!(e.to_string().contains("xs:schema"), "{e}");
+
+    // Not well-formed at all.
+    let e = parse_schema("<a><unclosed></a>").expect_err("not well-formed");
+    assert!(e.to_string().contains("well-formed"), "{e}");
+
+    // A document with no root element is not well-formed XML, so the
+    // parser refuses it before a schema is ever considered — which is
+    // why `validate`'s own no-root branch cannot be reached through
+    // the public API.
+    assert!(oxml::parse("<!-- nothing -->").is_err());
 }

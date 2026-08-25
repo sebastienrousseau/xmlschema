@@ -57,53 +57,14 @@ impl Occurs {
 
 /// A built-in XSD simple type.
 ///
-/// Only the datatypes that carry a distinct *validation rule* are
-/// modelled. `xs:token` and `xs:normalizedString`, for instance,
-/// differ from `xs:string` in whitespace handling rather than in what
-/// they accept, and are treated as strings here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuiltIn {
-    /// `xs:string` and its whitespace-variant relatives.
-    String,
-    /// `xs:boolean` — `true`, `false`, `1`, `0`.
-    Boolean,
-    /// `xs:decimal`
-    Decimal,
-    /// `xs:integer`, `xs:int`, `xs:long`, `xs:short`.
-    Integer,
-    /// `xs:nonNegativeInteger`, `xs:positiveInteger` and friends.
-    NonNegativeInteger,
-    /// `xs:double` and `xs:float`.
-    Double,
-    /// `xs:date` — `YYYY-MM-DD`.
-    Date,
-    /// `xs:dateTime`
-    DateTime,
-    /// `xs:anyURI`
-    AnyUri,
-}
-
-impl BuiltIn {
-    /// Resolve an XSD type name, ignoring any namespace prefix.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        let local = name.rsplit(':').next().unwrap_or(name);
-        Some(match local {
-            "string" | "normalizedString" | "token" | "NMTOKEN" | "Name"
-            | "NCName" | "ID" | "IDREF" | "language" => Self::String,
-            "boolean" => Self::Boolean,
-            "decimal" => Self::Decimal,
-            "integer" | "int" | "long" | "short" | "byte" => Self::Integer,
-            "nonNegativeInteger" | "positiveInteger" | "unsignedInt"
-            | "unsignedLong" | "unsignedShort" => Self::NonNegativeInteger,
-            "double" | "float" => Self::Double,
-            "date" => Self::Date,
-            "dateTime" => Self::DateTime,
-            "anyURI" => Self::AnyUri,
-            _ => return None,
-        })
-    }
-}
+/// A built-in XSD datatype.
+///
+/// Re-exported from [`crate::datatype`], where every built-in is
+/// modelled separately. It used to be a nine-variant summary that
+/// folded `xs:byte` into an unbounded integer and `xs:NCName` into a
+/// string; a schema using either then accepted values the
+/// specification rejects, silently.
+pub use crate::datatype::Datatype as BuiltIn;
 
 /// Constraints narrowing a simple type.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -119,14 +80,24 @@ pub struct Facets {
     pub max_length: Option<usize>,
     /// `xs:length`
     pub length: Option<usize>,
-    /// `xs:minInclusive`
-    pub min_inclusive: Option<f64>,
-    /// `xs:maxInclusive`
-    pub max_inclusive: Option<f64>,
-    /// `xs:minExclusive`
-    pub min_exclusive: Option<f64>,
-    /// `xs:maxExclusive`
-    pub max_exclusive: Option<f64>,
+    /// `xs:minInclusive`, as written.
+    ///
+    /// Kept lexically rather than as a number: a bound on a date or a
+    /// duration is ordered too, and `"2000-01-01".parse::<f64>()`
+    /// fails, which silently dropped every temporal bound.
+    pub min_inclusive: Option<String>,
+    /// `xs:maxInclusive`, as written.
+    pub max_inclusive: Option<String>,
+    /// `xs:minExclusive`, as written.
+    pub min_exclusive: Option<String>,
+    /// `xs:maxExclusive`, as written.
+    pub max_exclusive: Option<String>,
+    /// `xs:totalDigits` — the count of significant digits.
+    pub total_digits: Option<usize>,
+    /// `xs:fractionDigits` — the count of digits after the point.
+    pub fraction_digits: Option<usize>,
+    /// `xs:whiteSpace` — overrides the base type's own rule.
+    pub white_space: Option<crate::datatype::WhiteSpace>,
 }
 
 impl Facets {
@@ -137,22 +108,69 @@ impl Facets {
     }
 }
 
-/// A simple type: a built-in, optionally restricted.
+/// A simple type: a built-in, optionally restricted, listed or united.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleType {
     /// The base built-in the value must first satisfy.
+    ///
+    /// Meaningful only for [`Variety::Atomic`]; a list or union
+    /// carries its constraint in [`SimpleType::variety`] instead.
     pub base: BuiltIn,
     /// Additional constraints.
     pub facets: Facets,
+    /// Whether the value is a single value, a whitespace-separated
+    /// list of them, or one of several alternatives.
+    pub variety: Variety,
+}
+
+impl SimpleType {
+    /// An atomic type with no facets.
+    #[must_use]
+    pub fn atomic(base: BuiltIn) -> Self {
+        Self {
+            base,
+            facets: Facets::default(),
+            variety: Variety::Atomic,
+        }
+    }
+}
+
+/// Which of XSD's three simple-type varieties this is.
+///
+/// The specification calls these *varieties* rather than kinds, and
+/// they are not interchangeable: length facets count characters on an
+/// atomic type and *items* on a list, so folding a list into its item
+/// type gets both the value space and the facets wrong.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Variety {
+    /// A single value.
+    Atomic,
+    /// A whitespace-separated sequence, every item of which satisfies
+    /// the item type.
+    List(Box<SimpleType>),
+    /// A value satisfying at least one member type.
+    Union(Vec<SimpleType>),
 }
 
 /// What may appear inside an element.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Content {
     /// No child elements; the text must satisfy the simple type.
-    Simple(SimpleType),
+    ///
+    /// Boxed because a `SimpleType` carries a `Variety`, which may
+    /// hold a whole list item type or a vector of union members; left
+    /// inline it makes every `Content` -- including the empty ones --
+    /// as large as the largest simple type in the schema.
+    Simple(Box<SimpleType>),
     /// Children must appear in this order.
     Sequence(Vec<Particle>),
+    /// Children may appear in any order, each at most once.
+    ///
+    /// `xs:all` is not a `Sequence` with relaxed ordering: its
+    /// particles are limited to `maxOccurs="1"`, and validating it as
+    /// a sequence rejects a document whose children are simply in a
+    /// different order.
+    All(Vec<Particle>),
     /// Exactly one branch must match.
     Choice(Vec<Particle>),
     /// Any content is accepted. Used for `xs:any` and for element
@@ -173,6 +191,48 @@ pub struct Particle {
     pub content: Box<Content>,
     /// Its attribute declarations.
     pub attributes: Vec<AttributeDecl>,
+    /// `@fixed` — the element's content must equal this exactly.
+    pub fixed: Option<String>,
+    /// `@nillable` — `xsi:nil="true"` may stand in for content.
+    pub nillable: bool,
+    /// When set, this particle is an `xs:any` wildcard rather than a
+    /// named element, and [`Particle::name`] is empty.
+    pub wildcard: Option<Wildcard>,
+    /// `xs:anyAttribute` on this element's type, if it has one.
+    pub any_attribute: Option<Wildcard>,
+}
+
+/// An `xs:any` or `xs:anyAttribute` wildcard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wildcard {
+    /// Which namespaces it admits.
+    pub namespaces: NamespaceConstraint,
+    /// How strictly the matched content is validated.
+    pub process: ProcessContents,
+}
+
+/// The `namespace` attribute of a wildcard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamespaceConstraint {
+    /// `##any` — anything at all.
+    Any,
+    /// `##other` — anything outside the target namespace.
+    Other,
+    /// An explicit list, where `##targetNamespace` and `##local` have
+    /// been resolved to a URI and to "no namespace" respectively.
+    List(Vec<Option<String>>),
+}
+
+/// The `processContents` attribute of a wildcard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessContents {
+    /// The matched element must have a declaration, and is validated
+    /// against it.
+    Strict,
+    /// Validated if a declaration is found, accepted otherwise.
+    Lax,
+    /// Not validated at all.
+    Skip,
 }
 
 /// An attribute declaration.
@@ -184,6 +244,10 @@ pub struct AttributeDecl {
     pub required: bool,
     /// The type its value must satisfy.
     pub simple_type: SimpleType,
+    /// `@fixed` — if present, the value must equal this exactly.
+    pub fixed: Option<String>,
+    /// `@use="prohibited"` — the attribute must *not* appear.
+    pub prohibited: bool,
 }
 
 /// A parsed schema.
@@ -195,6 +259,8 @@ pub struct Schema {
     pub elements: BTreeMap<String, Particle>,
     /// Named top-level simple types, by local name.
     pub named_simple_types: BTreeMap<String, SimpleType>,
+    /// Named top-level complex types, by local name.
+    pub named_complex_types: BTreeMap<String, Content>,
 }
 
 impl Schema {

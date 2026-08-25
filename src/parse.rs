@@ -3,13 +3,15 @@
 
 //! Reading an `.xsd` into a [`Schema`].
 
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 use oxml::{Document, NodeId};
 
+use crate::datatype::WhiteSpace;
 use crate::model::{
-    AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
-    SimpleType,
+    AttributeDecl, BuiltIn, Content, Facets, NamespaceConstraint, Occurs,
+    Particle, ProcessContents, Schema, SimpleType, Variety, Wildcard,
 };
 
 /// Why a schema could not be read.
@@ -26,6 +28,102 @@ impl std::fmt::Display for SchemaError {
 }
 
 impl std::error::Error for SchemaError {}
+
+/// Top-level declarations, by local name, as document nodes.
+///
+/// A `ref` names one of these, and so does a `group` or
+/// `attributeGroup` reference. They are collected before anything is
+/// resolved because a reference may point forward, and re-walking the
+/// tree for each one is quadratic on a large schema.
+#[derive(Debug, Default)]
+struct Tops {
+    elements: BTreeMap<String, NodeId>,
+    attributes: BTreeMap<String, NodeId>,
+    groups: BTreeMap<String, NodeId>,
+    attribute_groups: BTreeMap<String, NodeId>,
+    complex_types: BTreeMap<String, NodeId>,
+}
+
+/// Parsed complex types and attribute lists, by node.
+///
+/// Without this, resolving a named type re-parses it at every
+/// reference, and each of *its* children resolves its own type in
+/// turn: the work is exponential in the nesting depth. On the W3C
+/// suite that was the difference between seconds and not finishing.
+#[derive(Default)]
+struct Memo {
+    content: BTreeMap<usize, Content>,
+    attributes: BTreeMap<usize, Vec<AttributeDecl>>,
+}
+
+/// What a nested parse needs: the document, what has been built so
+/// far, the memo, and how deep the reference chain is.
+struct Ctx<'a> {
+    doc: &'a Document,
+    schema: &'a Schema,
+    tops: &'a Tops,
+    memo: &'a RefCell<Memo>,
+    /// Guards against a group that references itself. XSD forbids a
+    /// circular model group, but a schema is untrusted input and the
+    /// alternative to a bound is a stack overflow.
+    depth: usize,
+    /// Particles built so far, against [`MAX_PARTICLES`].
+    budget: &'a Cell<usize>,
+}
+
+impl<'a> Ctx<'a> {
+    /// The same context one level deeper, or `None` at the limit.
+    fn deeper(&self) -> Option<Ctx<'a>> {
+        (self.depth < MAX_REFERENCE_DEPTH).then(|| Ctx {
+            doc: self.doc,
+            schema: self.schema,
+            tops: self.tops,
+            memo: self.memo,
+            depth: self.depth + 1,
+            budget: self.budget,
+        })
+    }
+
+    /// Charge one particle against the budget.
+    fn charge(&self) -> Result<(), SchemaError> {
+        self.charge_many(1)
+    }
+
+    /// Charge `n` particles against the budget.
+    ///
+    /// A *use* of a type is charged, not a parse of it: the memo makes
+    /// parsing linear, but each use clones the whole content model, so
+    /// the cost that matters is the materialised tree.
+    fn charge_many(&self, n: usize) -> Result<(), SchemaError> {
+        let spent = self.budget.get().saturating_add(n);
+        self.budget.set(spent);
+        if spent > MAX_PARTICLES {
+            return err(format!(
+                "the schema's content models expand past {MAX_PARTICLES} \
+                 particles; a type that references another twice doubles \
+                 at every level"
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// How far a chain of `ref`s and group references may nest.
+const MAX_REFERENCE_DEPTH: usize = 64;
+
+/// How many particles a schema's expanded content models may total.
+///
+/// A referenced type is *inlined* where it is used, so a schema whose
+/// every type names the previous one twice doubles at each level: 24
+/// levels is sixteen million particles, from a schema of a few
+/// kilobytes. Depth alone does not bound that -- each level is within
+/// the reference limit -- and neither does memoising the parse, since
+/// the cost is in the materialised tree rather than the work to build
+/// it.
+///
+/// Generous enough that no real schema approaches it: the largest in
+/// the W3C suite expands to a few thousand.
+const MAX_PARTICLES: usize = 100_000;
 
 fn err<T>(message: impl Into<String>) -> Result<T, SchemaError> {
     Err(SchemaError {
@@ -56,31 +154,179 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
             .map(str::to_owned),
         elements: BTreeMap::new(),
         named_simple_types: BTreeMap::new(),
+        named_complex_types: BTreeMap::new(),
     };
 
-    // Named simple types are collected first: an element declaration
-    // may reference one by name, and resolving forward references
-    // afterwards would need a second pass over the whole tree.
+    check_structure(&doc)?;
+
+    let memo = RefCell::new(Memo::default());
+    let budget = Cell::new(0usize);
+
+    // Every top-level declaration is indexed first, because a `ref` or
+    // a group reference may point forward.
+    let mut tops = Tops::default();
+    for &child in doc.children(root) {
+        let (Some(kind), Some(name)) =
+            (local_name(&doc, child), doc.attribute(child, "name"))
+        else {
+            continue;
+        };
+        let table = match kind {
+            "element" => &mut tops.elements,
+            "attribute" => &mut tops.attributes,
+            "group" => &mut tops.groups,
+            "attributeGroup" => &mut tops.attribute_groups,
+            "complexType" => &mut tops.complex_types,
+            _ => continue,
+        };
+        let _ = table.insert(name.to_owned(), child);
+    }
+
+    // Named simple types next: an element declaration may reference
+    // one by name, and resolving forward references afterwards would
+    // need a second pass over the whole tree.
     for &child in doc.children(root) {
         if local_name(&doc, child) == Some("simpleType") {
             if let Some(name) = doc.attribute(child, "name") {
-                let st = parse_simple_type(&doc, child, &schema);
+                let ctx = Ctx {
+                    doc: &doc,
+                    schema: &schema,
+                    tops: &tops,
+                    memo: &memo,
+                    depth: 0,
+                    budget: &budget,
+                };
+                let st = parse_simple_type(&ctx, child);
                 let _ = schema.named_simple_types.insert(name.to_owned(), st);
             }
         }
     }
 
+    // Then named complex types, so a `type` attribute can name one.
+    for (name, &node) in &tops.complex_types {
+        let ctx = Ctx {
+            doc: &doc,
+            schema: &schema,
+            tops: &tops,
+            memo: &memo,
+            depth: 0,
+            budget: &budget,
+        };
+        let content = parse_complex_type(&ctx, node)?;
+        let _ = schema.named_complex_types.insert(name.clone(), content);
+    }
+
     for &child in doc.children(root) {
         if local_name(&doc, child) == Some("element") {
-            let particle = parse_element(&doc, child, &schema)?;
+            let ctx = Ctx {
+                doc: &doc,
+                schema: &schema,
+                tops: &tops,
+                memo: &memo,
+                depth: 0,
+                budget: &budget,
+            };
+            let particle = parse_element(&ctx, child)?;
             let _ = schema.elements.insert(particle.name.clone(), particle);
         }
     }
 
-    if schema.elements.is_empty() {
-        return err("the schema declares no top-level elements");
-    }
+    // A schema declaring only types, groups or attributes is
+    // perfectly valid -- it exists to be imported. Refusing it
+    // rejected 282 schemas the W3C suite calls valid.
     Ok(schema)
+}
+
+/// Check the schema document against XSD's own structural rules.
+///
+/// A schema is itself an XML document with a content model, and a
+/// schema that breaks it is invalid however sensible its declarations
+/// look. This crate reads what it recognises and ignored the rest,
+/// so it accepted schemas the specification rejects -- around 180 in
+/// the W3C suite before this.
+///
+/// Not the whole schema-for-schemas, which would be a second
+/// validator. These are the structural rules the suite tests most:
+/// where `annotation` may appear, and which children are mutually
+/// exclusive.
+fn check_structure(doc: &Document) -> Result<(), SchemaError> {
+    for id in doc.descendants() {
+        let Some(name) = local_name(doc, id) else {
+            continue;
+        };
+        let children: Vec<&str> = doc
+            .children(id)
+            .iter()
+            .filter_map(|&c| local_name(doc, c))
+            .collect();
+
+        // `annotation` is permitted once, and only first. Both halves
+        // matter: `ctB002` repeats it, `ctB004` puts it last.
+        let annotations =
+            children.iter().filter(|c| **c == "annotation").count();
+        if annotations > 1 {
+            return err(format!(
+                "xs:{name} has {annotations} xs:annotation children; \
+                 at most one is permitted"
+            ));
+        }
+        if annotations == 1 && children.first() != Some(&"annotation") {
+            return err(format!(
+                "xs:annotation must be the first child of xs:{name}"
+            ));
+        }
+
+        // Mutually exclusive children, by parent.
+        let exclusive: &[&str] = match name {
+            "complexType" => &[
+                "simpleContent",
+                "complexContent",
+                "group",
+                "all",
+                "choice",
+                "sequence",
+            ],
+            "simpleType" => &["restriction", "list", "union"],
+            "element" | "attribute" => &["simpleType", "complexType"],
+            _ => &[],
+        };
+        let present: Vec<&&str> =
+            children.iter().filter(|c| exclusive.contains(c)).collect();
+        if present.len() > 1 {
+            return err(format!(
+                "xs:{name} has both xs:{} and xs:{}; they are mutually \
+                 exclusive",
+                present[0], present[1]
+            ));
+        }
+
+        // A `simpleType` must say which variety it is.
+        if name == "simpleType" && present.is_empty() {
+            return err(
+                "xs:simpleType must contain a restriction, list or union",
+            );
+        }
+
+        // A declaration may name a type or contain one, not both.
+        if matches!(name, "element" | "attribute")
+            && doc.attribute(id, "type").is_some()
+            && !present.is_empty()
+        {
+            return err(format!(
+                "xs:{name} has both a `type` attribute and an inline type"
+            ));
+        }
+
+        // `ref` excludes `name`, and everything a declaration would
+        // carry.
+        if matches!(name, "element" | "attribute")
+            && doc.attribute(id, "ref").is_some()
+            && doc.attribute(id, "name").is_some()
+        {
+            return err(format!("xs:{name} has both `name` and `ref`"));
+        }
+    }
+    Ok(())
 }
 
 fn local_name(doc: &Document, id: NodeId) -> Option<&str> {
@@ -115,11 +361,30 @@ fn parse_occurs(doc: &Document, id: NodeId) -> Occurs {
     Occurs { min, max }
 }
 
-fn parse_element(
-    doc: &Document,
-    id: NodeId,
-    schema: &Schema,
-) -> Result<Particle, SchemaError> {
+fn parse_element(ctx: &Ctx, id: NodeId) -> Result<Particle, SchemaError> {
+    let doc = ctx.doc;
+
+    // `<xs:element ref="name"/>` re-uses a top-level declaration, with
+    // this occurrence's own cardinality. Resolving it is not optional:
+    // an unresolved ref left the element unconstrained.
+    if let Some(reference) = doc.attribute(id, "ref") {
+        let local = reference.rsplit(':').next().unwrap_or(reference);
+        // A reference this schema cannot resolve almost always names
+        // something in an imported namespace, and `xs:import` is not
+        // supported. Treating that as an invalid *schema* rejected 424
+        // schemas the suite calls valid. It is not enforceable, which
+        // `support::unsupported` reports; it is not wrong.
+        let Some(&target) = ctx.tops.elements.get(local) else {
+            return Ok(unenforceable_element(local, parse_occurs(doc, id)));
+        };
+        let Some(inner) = ctx.deeper() else {
+            return Ok(unenforceable_element(local, parse_occurs(doc, id)));
+        };
+        let mut particle = parse_element(&inner, target)?;
+        particle.occurs = parse_occurs(doc, id);
+        return Ok(particle);
+    }
+
     let Some(name) = doc.attribute(id, "name") else {
         return err("an xs:element has no name");
     };
@@ -129,65 +394,160 @@ fn parse_element(
     // inline complexType, or an inline simpleType. Anything else is
     // unconstrained.
     let content = if let Some(type_name) = doc.attribute(id, "type") {
-        resolve_named_type(type_name, schema)
+        resolve_named_type(ctx, type_name)
     } else if let Some(ct) = first_child_named(doc, id, "complexType") {
-        parse_complex_type(doc, ct, schema)?
+        parse_complex_type(ctx, ct)?
     } else if let Some(st) = first_child_named(doc, id, "simpleType") {
-        Content::Simple(parse_simple_type(doc, st, schema))
+        Content::Simple(Box::new(parse_simple_type(ctx, st)))
     } else {
         Content::Any
     };
 
     let attributes = if let Some(ct) = first_child_named(doc, id, "complexType")
     {
-        parse_attributes(doc, ct, schema)
+        parse_attributes(ctx, ct)?
+    } else if let Some(type_name) = doc.attribute(id, "type") {
+        // A named complex type carries attributes too.
+        let local = type_name.rsplit(':').next().unwrap_or(type_name);
+        match ctx.tops.complex_types.get(local) {
+            Some(&node) => parse_attributes(ctx, node)?,
+            None => Vec::new(),
+        }
     } else {
         Vec::new()
     };
 
+    ctx.charge()?;
     Ok(Particle {
         name: name.to_owned(),
         occurs,
         content: Box::new(content),
         attributes,
+        fixed: doc.attribute(id, "fixed").map(str::to_owned),
+        nillable: doc.attribute(id, "nillable") == Some("true"),
+        wildcard: None,
+        any_attribute: any_attribute_of(ctx, id),
     })
 }
 
-fn resolve_named_type(name: &str, schema: &Schema) -> Content {
+/// The `xs:anyAttribute` governing an element, from its inline
+/// complexType or from the named one it uses.
+fn any_attribute_of(ctx: &Ctx, id: NodeId) -> Option<Wildcard> {
+    let doc = ctx.doc;
+    let host = first_child_named(doc, id, "complexType").or_else(|| {
+        let name = doc.attribute(id, "type")?;
+        let local = name.rsplit(':').next().unwrap_or(name);
+        ctx.tops.complex_types.get(local).copied()
+    })?;
+    // It may sit directly on the type or inside a derivation.
+    let mut places = vec![host];
+    for wrapper in ["complexContent", "simpleContent"] {
+        if let Some(w) = first_child_named(doc, host, wrapper) {
+            for kind in ["extension", "restriction"] {
+                if let Some(node) = first_child_named(doc, w, kind) {
+                    places.push(node);
+                }
+            }
+        }
+    }
+    places
+        .into_iter()
+        .find_map(|p| first_child_named(doc, p, "anyAttribute"))
+        .map(|node| parse_wildcard(ctx, node))
+}
+
+/// A particle for a reference that cannot be resolved here.
+///
+/// It keeps the name and cardinality so ordering still works, and
+/// accepts any content, because this schema has nothing to check it
+/// against. `support::unsupported` reports the import that caused it.
+fn unenforceable_element(name: &str, occurs: Occurs) -> Particle {
+    Particle {
+        name: name.to_owned(),
+        occurs,
+        content: Box::new(Content::Any),
+        attributes: Vec::new(),
+        fixed: None,
+        nillable: true,
+        wildcard: None,
+        any_attribute: None,
+    }
+}
+
+fn resolve_named_type(ctx: &Ctx, name: &str) -> Content {
     let local = name.rsplit(':').next().unwrap_or(name);
-    if let Some(st) = schema.named_simple_types.get(local) {
-        return Content::Simple(st.clone());
+    if let Some(st) = ctx.schema.named_simple_types.get(local) {
+        return Content::Simple(Box::new(st.clone()));
+    }
+    if let Some(ct) = ctx.schema.named_complex_types.get(local) {
+        return ct.clone();
+    }
+    // A complex type declared later in the same pass is not in the
+    // schema yet, so fall back to reading it directly.
+    if let Some(&node) = ctx.tops.complex_types.get(local) {
+        if let Some(inner) = ctx.deeper() {
+            if let Ok(content) = parse_complex_type(&inner, node) {
+                return content;
+            }
+        }
     }
     BuiltIn::from_name(name).map_or(Content::Any, |b| {
-        Content::Simple(SimpleType {
-            base: b,
-            facets: Facets::default(),
-        })
+        Content::Simple(Box::new(SimpleType::atomic(b)))
     })
 }
 
-fn parse_complex_type(
-    doc: &Document,
+fn parse_complex_type(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
+    let cached = ctx.memo.borrow().content.get(&id.index()).cloned();
+    if let Some(hit) = cached {
+        // Charged on every use, not only the first: this is another
+        // copy of the whole model.
+        ctx.charge_many(particle_count(&hit))?;
+        return Ok(hit);
+    }
+    let content = parse_complex_type_uncached(ctx, id)?;
+    ctx.charge_many(particle_count(&content))?;
+    let _ = ctx
+        .memo
+        .borrow_mut()
+        .content
+        .insert(id.index(), content.clone());
+    Ok(content)
+}
+
+/// How many particles a content model holds, counting nested ones.
+fn particle_count(content: &Content) -> usize {
+    match content {
+        Content::Sequence(p) | Content::Choice(p) | Content::All(p) => p
+            .iter()
+            .map(|particle| 1 + particle_count(&particle.content))
+            .sum(),
+        _ => 0,
+    }
+}
+
+fn parse_complex_type_uncached(
+    ctx: &Ctx,
     id: NodeId,
-    schema: &Schema,
 ) -> Result<Content, SchemaError> {
-    if let Some(seq) = first_child_named(doc, id, "sequence") {
-        return Ok(Content::Sequence(parse_particles(doc, seq, schema)?));
+    let doc = ctx.doc;
+
+    // `complexContent` wraps an extension or restriction of another
+    // complex type. An extension appends its own particles to the
+    // base's; a restriction replaces them.
+    if let Some(cc) = first_child_named(doc, id, "complexContent") {
+        return parse_complex_content(ctx, cc);
     }
-    if let Some(choice) = first_child_named(doc, id, "choice") {
-        return Ok(Content::Choice(parse_particles(doc, choice, schema)?));
-    }
-    if first_child_named(doc, id, "all").is_some() {
-        return err(
-            "xs:all is not supported yet; use xs:sequence or xs:choice",
-        );
+    if let Some(group) = model_group(doc, id) {
+        return parse_model_group(ctx, group);
     }
     if let Some(sc) = first_child_named(doc, id, "simpleContent") {
         // simpleContent restricts or extends a simple type; the
         // validating part is the base type.
-        if let Some(ext) = first_child_named(doc, sc, "extension") {
-            if let Some(base) = doc.attribute(ext, "base") {
-                return Ok(resolve_named_type(base, schema));
+        for kind in ["extension", "restriction"] {
+            if let Some(node) = first_child_named(doc, sc, kind) {
+                if let Some(base) = doc.attribute(node, "base") {
+                    return Ok(resolve_named_type(ctx, base));
+                }
             }
         }
         return Ok(Content::Any);
@@ -197,80 +557,335 @@ fn parse_complex_type(
     Ok(Content::Empty)
 }
 
-fn parse_particles(
-    doc: &Document,
+/// Read an `xs:any` or `xs:anyAttribute`.
+fn parse_wildcard(ctx: &Ctx, id: NodeId) -> Wildcard {
+    let doc = ctx.doc;
+    let target = ctx.schema.target_namespace.clone();
+    let namespaces = match doc.attribute(id, "namespace") {
+        None | Some("##any") => NamespaceConstraint::Any,
+        Some("##other") => NamespaceConstraint::Other,
+        Some(list) => NamespaceConstraint::List(
+            list.split_whitespace()
+                .map(|item| match item {
+                    "##targetNamespace" => target.clone(),
+                    "##local" => None,
+                    uri => Some(uri.to_owned()),
+                })
+                .collect(),
+        ),
+    };
+    let process = match doc.attribute(id, "processContents") {
+        Some("skip") => ProcessContents::Skip,
+        Some("lax") => ProcessContents::Lax,
+        _ => ProcessContents::Strict,
+    };
+    Wildcard {
+        namespaces,
+        process,
+    }
+}
+
+/// The `sequence`, `choice` or `all` directly inside `id`, if any.
+fn model_group(doc: &Document, id: NodeId) -> Option<NodeId> {
+    ["sequence", "choice", "all", "group"]
+        .into_iter()
+        .find_map(|name| first_child_named(doc, id, name))
+}
+
+/// Read a `sequence`, `choice`, `all`, or a reference to a named group.
+fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
+    let doc = ctx.doc;
+    match local_name(doc, id) {
+        Some("sequence") => Ok(Content::Sequence(parse_particles(ctx, id)?)),
+        Some("choice") => Ok(Content::Choice(parse_particles(ctx, id)?)),
+        Some("all") => Ok(Content::All(parse_particles(ctx, id)?)),
+        Some("group") => {
+            // A named group carries exactly one model group.
+            let Some(reference) = doc.attribute(id, "ref") else {
+                // A definition rather than a reference.
+                return match model_group(doc, id) {
+                    Some(inner) => parse_model_group(ctx, inner),
+                    None => Ok(Content::Empty),
+                };
+            };
+            let local = reference.rsplit(':').next().unwrap_or(reference);
+            let Some(&target) = ctx.tops.groups.get(local) else {
+                // As for an element reference: unresolvable means
+                // unenforceable, not invalid.
+                return Ok(Content::Any);
+            };
+            let Some(inner) = ctx.deeper() else {
+                return Ok(Content::Any);
+            };
+            match model_group(doc, target) {
+                Some(group) => parse_model_group(&inner, group),
+                None => Ok(Content::Empty),
+            }
+        }
+        _ => Ok(Content::Empty),
+    }
+}
+
+/// `complexContent` — an extension or restriction of a complex type.
+fn parse_complex_content(
+    ctx: &Ctx,
     id: NodeId,
-    schema: &Schema,
+) -> Result<Content, SchemaError> {
+    let doc = ctx.doc;
+    let Some(node) = first_child_named(doc, id, "extension")
+        .or_else(|| first_child_named(doc, id, "restriction"))
+    else {
+        return Ok(Content::Any);
+    };
+    let extending = local_name(doc, node) == Some("extension");
+
+    let own = match model_group(doc, node) {
+        Some(group) => parse_model_group(ctx, group)?,
+        None => Content::Empty,
+    };
+
+    let Some(base_name) = doc.attribute(node, "base") else {
+        return Ok(own);
+    };
+    let base = resolve_named_type(ctx, base_name);
+
+    if !extending {
+        // A restriction states the content model it permits in full.
+        return Ok(own);
+    }
+
+    // An extension appends its particles to the base's, which is only
+    // meaningful when both are sequences.
+    Ok(match (base, own) {
+        (Content::Sequence(mut a), Content::Sequence(b)) => {
+            a.extend(b);
+            Content::Sequence(a)
+        }
+        (Content::Empty, own) => own,
+        // Anything else: the base decides. Appending a choice to a
+        // sequence, say, has no single content model, and taking the
+        // base is the reading that constrains rather than the one
+        // that lets everything through.
+        (base, _) => base,
+    })
+}
+
+fn parse_particles(
+    ctx: &Ctx,
+    id: NodeId,
 ) -> Result<Vec<Particle>, SchemaError> {
+    let doc = ctx.doc;
     let mut out = Vec::new();
-    for child in children_named(doc, id, "element") {
-        out.push(parse_element(doc, child, schema)?);
+    for &child in doc.children(id) {
+        match local_name(doc, child) {
+            Some("element") => out.push(parse_element(ctx, child)?),
+            Some("any") => out.push(Particle {
+                name: String::new(),
+                occurs: parse_occurs(doc, child),
+                content: Box::new(Content::Any),
+                attributes: Vec::new(),
+                fixed: None,
+                nillable: false,
+                wildcard: Some(parse_wildcard(ctx, child)),
+                any_attribute: None,
+            }),
+            // A nested model group or a group reference contributes its
+            // own particles. Flattening loses the grouping, which
+            // matters for a choice; that is recorded by
+            // `support::unsupported` rather than silently ignored.
+            Some("sequence" | "choice" | "all" | "group") => {
+                let content = parse_model_group(ctx, child)?;
+                match content {
+                    Content::Sequence(p)
+                    | Content::Choice(p)
+                    | Content::All(p) => out.extend(p),
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
     }
     Ok(out)
 }
 
 /// Read a complexType's attribute declarations.
 ///
-/// Infallible for the same reason as `parse_simple_type`: an
-/// attribute without a name is skipped rather than rejected, and every
-/// type resolution degrades to `xs:string`.
+/// Follows `ref` to a top-level declaration and splices in any
+/// `attributeGroup` the type references, both of which previously left
+/// the attribute unconstrained.
 fn parse_attributes(
-    doc: &Document,
-    complex_type: NodeId,
-    schema: &Schema,
-) -> Vec<AttributeDecl> {
+    ctx: &Ctx,
+    id: NodeId,
+) -> Result<Vec<AttributeDecl>, SchemaError> {
+    if let Some(hit) = ctx.memo.borrow().attributes.get(&id.index()) {
+        return Ok(hit.clone());
+    }
+    let attributes = parse_attributes_uncached(ctx, id)?;
+    let _ = ctx
+        .memo
+        .borrow_mut()
+        .attributes
+        .insert(id.index(), attributes.clone());
+    Ok(attributes)
+}
+
+fn parse_attributes_uncached(
+    ctx: &Ctx,
+    id: NodeId,
+) -> Result<Vec<AttributeDecl>, SchemaError> {
+    let doc = ctx.doc;
     let mut out = Vec::new();
-    for attr in children_named(doc, complex_type, "attribute") {
-        let Some(name) = doc.attribute(attr, "name") else {
+
+    // An extension or restriction may declare attributes of its own,
+    // alongside the ones it inherits from its base.
+    let mut hosts = vec![id];
+    for wrapper in ["complexContent", "simpleContent"] {
+        let Some(w) = first_child_named(doc, id, wrapper) else {
             continue;
         };
-        let required = doc.attribute(attr, "use") == Some("required");
-        let simple_type = if let Some(t) = doc.attribute(attr, "type") {
-            match resolve_named_type(t, schema) {
-                Content::Simple(st) => st,
-                _ => SimpleType {
-                    base: BuiltIn::String,
-                    facets: Facets::default(),
-                },
+        for kind in ["extension", "restriction"] {
+            let Some(node) = first_child_named(doc, w, kind) else {
+                continue;
+            };
+            hosts.push(node);
+            if let Some(base) = doc.attribute(node, "base") {
+                let local = base.rsplit(':').next().unwrap_or(base);
+                if let (Some(&target), Some(inner)) =
+                    (ctx.tops.complex_types.get(local), ctx.deeper())
+                {
+                    out.extend(parse_attributes(&inner, target)?);
+                }
             }
-        } else if let Some(st) = first_child_named(doc, attr, "simpleType") {
-            parse_simple_type(doc, st, schema)
-        } else {
-            SimpleType {
-                base: BuiltIn::String,
-                facets: Facets::default(),
-            }
-        };
-        out.push(AttributeDecl {
-            name: name.to_owned(),
-            required,
-            simple_type,
-        });
+        }
     }
-    out
+
+    for host in hosts {
+        for &child in doc.children(host) {
+            match local_name(doc, child) {
+                Some("attribute") => {
+                    if let Some(decl) = parse_attribute(ctx, child)? {
+                        out.push(decl);
+                    }
+                }
+                Some("attributeGroup") => {
+                    let Some(reference) = doc.attribute(child, "ref") else {
+                        continue;
+                    };
+                    let local =
+                        reference.rsplit(':').next().unwrap_or(reference);
+                    let Some(&target) = ctx.tops.attribute_groups.get(local)
+                    else {
+                        continue;
+                    };
+                    let Some(inner) = ctx.deeper() else {
+                        continue;
+                    };
+                    out.extend(parse_attributes(&inner, target)?);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // A later declaration of the same name replaces an inherited one,
+    // which is how a restriction narrows what it inherited.
+    let mut seen: Vec<String> = Vec::new();
+    out.reverse();
+    out.retain(|d| {
+        if seen.contains(&d.name) {
+            false
+        } else {
+            seen.push(d.name.clone());
+            true
+        }
+    });
+    out.reverse();
+    Ok(out)
+}
+
+/// One `xs:attribute`, following `ref` if it has one.
+fn parse_attribute(
+    ctx: &Ctx,
+    id: NodeId,
+) -> Result<Option<AttributeDecl>, SchemaError> {
+    let doc = ctx.doc;
+    let use_attr = doc.attribute(id, "use");
+
+    if let Some(reference) = doc.attribute(id, "ref") {
+        let local = reference.rsplit(':').next().unwrap_or(reference);
+        let Some(&target) = ctx.tops.attributes.get(local) else {
+            return Ok(None);
+        };
+        let Some(inner) = ctx.deeper() else {
+            return Ok(None);
+        };
+        let Some(mut decl) = parse_attribute(&inner, target)? else {
+            return Ok(None);
+        };
+        // This occurrence's own `use` and `fixed` win over the
+        // declaration's.
+        decl.required = use_attr == Some("required");
+        decl.prohibited = use_attr == Some("prohibited");
+        if let Some(fixed) = doc.attribute(id, "fixed") {
+            decl.fixed = Some(fixed.to_owned());
+        }
+        return Ok(Some(decl));
+    }
+
+    let Some(name) = doc.attribute(id, "name") else {
+        return Ok(None);
+    };
+    let simple_type = if let Some(t) = doc.attribute(id, "type") {
+        match resolve_named_type(ctx, t) {
+            Content::Simple(st) => *st,
+            _ => SimpleType::atomic(BuiltIn::String),
+        }
+    } else if let Some(st) = first_child_named(doc, id, "simpleType") {
+        parse_simple_type(ctx, st)
+    } else {
+        SimpleType::atomic(BuiltIn::String)
+    };
+    Ok(Some(AttributeDecl {
+        name: name.to_owned(),
+        required: use_attr == Some("required"),
+        simple_type,
+        fixed: doc.attribute(id, "fixed").map(str::to_owned),
+        prohibited: use_attr == Some("prohibited"),
+    }))
 }
 
 /// Read a `simpleType` into the model.
 ///
-/// Infallible: an unsupported construct (a union or list) degrades to
-/// `xs:string` rather than rejecting the whole schema, so there is no
-/// error path to report.
-fn parse_simple_type(
-    doc: &Document,
-    id: NodeId,
-    schema: &Schema,
-) -> SimpleType {
+/// Infallible: a construct that cannot be resolved degrades to
+/// `xs:string` rather than rejecting the whole schema. Callers that
+/// need to know whether anything was skipped ask
+/// [`crate::support::unsupported`], which audits the document rather
+/// than trusting this to report.
+fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
+    let doc = ctx.doc;
+    // `list` and `union` are varieties in their own right, and are
+    // checked before `restriction` because a restriction *of* a list
+    // still has list-valued content.
+    if let Some(list) = first_child_named(doc, id, "list") {
+        return parse_list(ctx, list, Facets::default());
+    }
+    if let Some(union) = first_child_named(doc, id, "union") {
+        return parse_union(ctx, union, Facets::default());
+    }
+
     let Some(restriction) = first_child_named(doc, id, "restriction") else {
-        // A simpleType with a union or list is not supported; treat it
-        // as a string rather than rejecting the whole schema.
-        return SimpleType {
-            base: BuiltIn::String,
-            facets: Facets::default(),
-        };
+        return SimpleType::atomic(BuiltIn::String);
     };
 
+    // A restriction whose base is a list or union keeps that variety
+    // and adds facets to it; length facets then count *items*.
+    let inherited = doc
+        .attribute(restriction, "base")
+        .and_then(|b| named_simple_type(b, ctx.schema))
+        .filter(|st| st.variety != Variety::Atomic);
+
     let base_name = doc.attribute(restriction, "base").unwrap_or("string");
-    let base = match resolve_named_type(base_name, schema) {
+    let base = match resolve_named_type(ctx, base_name) {
         Content::Simple(st) => st.base,
         _ => BuiltIn::String,
     };
@@ -289,12 +904,114 @@ fn parse_simple_type(
             "minLength" => facets.min_length = value.parse().ok(),
             "maxLength" => facets.max_length = value.parse().ok(),
             "length" => facets.length = value.parse().ok(),
-            "minInclusive" => facets.min_inclusive = value.parse().ok(),
-            "maxInclusive" => facets.max_inclusive = value.parse().ok(),
-            "minExclusive" => facets.min_exclusive = value.parse().ok(),
-            "maxExclusive" => facets.max_exclusive = value.parse().ok(),
+            "minInclusive" => {
+                facets.min_inclusive = Some(value.to_owned());
+            }
+            "maxInclusive" => {
+                facets.max_inclusive = Some(value.to_owned());
+            }
+            "minExclusive" => {
+                facets.min_exclusive = Some(value.to_owned());
+            }
+            "maxExclusive" => {
+                facets.max_exclusive = Some(value.to_owned());
+            }
+            "totalDigits" => facets.total_digits = value.parse().ok(),
+            "fractionDigits" => facets.fraction_digits = value.parse().ok(),
+            "whiteSpace" => {
+                facets.white_space = match value {
+                    "preserve" => Some(WhiteSpace::Preserve),
+                    "replace" => Some(WhiteSpace::Replace),
+                    "collapse" => Some(WhiteSpace::Collapse),
+                    _ => None,
+                };
+            }
             _ => {}
         }
     }
-    SimpleType { base, facets }
+    if let Some(mut inherited) = inherited {
+        inherited.facets = facets;
+        return inherited;
+    }
+    // A restriction may nest the list or union inline, either
+    // directly or wrapped in its own `simpleType`. The wrapped form
+    // is what the specification's own examples use, and missing it
+    // dropped the variety: a length facet then counted characters on
+    // a list, which agrees with an item count on short values.
+    for host in [
+        Some(restriction),
+        first_child_named(doc, restriction, "simpleType"),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Some(list) = first_child_named(doc, host, "list") {
+            return parse_list(ctx, list, facets);
+        }
+        if let Some(union) = first_child_named(doc, host, "union") {
+            return parse_union(ctx, union, facets);
+        }
+    }
+    SimpleType {
+        base,
+        facets,
+        variety: Variety::Atomic,
+    }
+}
+
+/// A named top-level simple type, if the schema declares one.
+fn named_simple_type(name: &str, schema: &Schema) -> Option<SimpleType> {
+    let local = name.rsplit(':').next().unwrap_or(name);
+    schema.named_simple_types.get(local).cloned()
+}
+
+/// `<xs:list itemType="..."/>` or `<xs:list><xs:simpleType>…`.
+fn parse_list(ctx: &Ctx, id: NodeId, facets: Facets) -> SimpleType {
+    let doc = ctx.doc;
+    let item = if let Some(name) = doc.attribute(id, "itemType") {
+        item_type(ctx, name)
+    } else if let Some(inline) = first_child_named(doc, id, "simpleType") {
+        parse_simple_type(ctx, inline)
+    } else {
+        SimpleType::atomic(BuiltIn::String)
+    };
+    SimpleType {
+        base: BuiltIn::AnySimpleType,
+        facets,
+        variety: Variety::List(Box::new(item)),
+    }
+}
+
+/// `<xs:union memberTypes="a b"/>`, with any nested `simpleType`s
+/// added to the named ones.
+fn parse_union(ctx: &Ctx, id: NodeId, facets: Facets) -> SimpleType {
+    let doc = ctx.doc;
+    let mut members: Vec<SimpleType> = doc
+        .attribute(id, "memberTypes")
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(|name| item_type(ctx, name))
+        .collect();
+    for &child in doc.children(id) {
+        if local_name(doc, child) == Some("simpleType") {
+            members.push(parse_simple_type(ctx, child));
+        }
+    }
+    if members.is_empty() {
+        members.push(SimpleType::atomic(BuiltIn::String));
+    }
+    SimpleType {
+        base: BuiltIn::AnySimpleType,
+        facets,
+        variety: Variety::Union(members),
+    }
+}
+
+/// Resolve a type name used as a list item or union member.
+fn item_type(ctx: &Ctx, name: &str) -> SimpleType {
+    if let Some(named) = named_simple_type(name, ctx.schema) {
+        return named;
+    }
+    BuiltIn::from_name(name)
+        .map_or_else(|| SimpleType::atomic(BuiltIn::String), SimpleType::atomic)
 }

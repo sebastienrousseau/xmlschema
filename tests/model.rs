@@ -86,52 +86,127 @@ fn built_in_names_resolve_ignoring_the_prefix() {
 }
 
 #[test]
-fn every_built_in_family_maps_to_its_validation_rule() {
-    // The aliases matter: `int` and `long` validate as integers, and
-    // treating an unrecognised one as "no constraint" would let invalid
-    // documents through silently.
-    let string_like = [
-        "string",
-        "normalizedString",
-        "token",
-        "NMTOKEN",
-        "Name",
-        "NCName",
-        "ID",
-        "IDREF",
-        "language",
+fn every_built_in_is_its_own_type_with_its_own_rule() {
+    // This test used to assert the opposite: that `byte`, `int`,
+    // `long` and `short` all resolved to one unbounded `Integer`, and
+    // that `NCName`, `ID` and `language` all resolved to `String`. Its
+    // own comment warned that treating a type loosely "would let
+    // invalid documents through silently" -- which is exactly what
+    // the mapping it pinned did. `xs:byte` accepted 999.
+    //
+    // Identity is not the property worth pinning; behaviour is.
+    let cases: &[(&str, &str, bool)] = &[
+        // (type, value, accepted)
+        ("byte", "127", true),
+        ("byte", "128", false),
+        ("byte", "-128", true),
+        ("byte", "-129", false),
+        ("short", "32767", true),
+        ("short", "32768", false),
+        ("int", "2147483647", true),
+        ("int", "2147483648", false),
+        ("long", "9223372036854775807", true),
+        ("long", "9223372036854775808", false),
+        ("unsignedByte", "255", true),
+        ("unsignedByte", "256", false),
+        ("unsignedByte", "-1", false),
+        ("unsignedShort", "65535", true),
+        ("unsignedShort", "65536", false),
+        ("unsignedInt", "4294967295", true),
+        ("unsignedInt", "4294967296", false),
+        ("positiveInteger", "1", true),
+        ("positiveInteger", "0", false),
+        ("nonNegativeInteger", "0", true),
+        ("nonNegativeInteger", "-1", false),
+        ("negativeInteger", "-1", true),
+        ("negativeInteger", "0", false),
+        ("nonPositiveInteger", "0", true),
+        ("nonPositiveInteger", "1", false),
+        // Unbounded, so a value no machine integer holds is still valid.
+        ("integer", "123456789012345678901234567890", true),
+        ("integer", "1.0", false),
+        ("decimal", "1.0", true),
+        ("decimal", "1.0e3", false),
+        ("double", "1.0e3", true),
+        ("double", "NaN", true),
+        ("double", "INF", true),
+        // Name productions, which used to be plain strings.
+        ("NCName", "abc", true),
+        ("NCName", "a:b", false),
+        ("NCName", "1abc", false),
+        ("Name", "a:b", true),
+        ("Name", "-abc", false),
+        ("NMTOKEN", "-abc", true),
+        ("NMTOKEN", "a b", false),
+        ("NMTOKENS", "a b", true),
+        ("language", "en-GB", true),
+        ("language", "e0", false),
+        ("QName", "p:local", true),
+        ("QName", "p:l:x", false),
+        // Whitespace is collapsed before validating, for every type
+        // but string and normalizedString.
+        ("integer", "  5  ", true),
+        ("boolean", "\ttrue\n", true),
+        // Dates and times, none of which existed before.
+        ("date", "2001-02-28", true),
+        ("date", "2001-02-29", false),
+        ("date", "2004-02-29", true),
+        ("date", "2001-13-01", false),
+        ("time", "23:59:59", true),
+        ("time", "24:00:00", true),
+        ("time", "24:00:01", false),
+        ("dateTime", "2001-01-01T00:00:00Z", true),
+        ("dateTime", "2001-01-01", false),
+        ("duration", "P1Y2M3DT4H5M6S", true),
+        ("duration", "P", false),
+        ("duration", "P1S", false),
+        ("gYear", "2001", true),
+        ("gMonth", "--02", true),
+        ("gDay", "---15", true),
+        ("gMonthDay", "--02-29", true),
+        ("gYearMonth", "2001-02", true),
+        ("hexBinary", "0FB7", true),
+        ("hexBinary", "0FB", false),
+        ("base64Binary", "QUJD", true),
+        ("base64Binary", "QUJ", false),
     ];
-    for n in string_like {
-        assert_eq!(BuiltIn::from_name(n), Some(BuiltIn::String), "{n}");
-    }
-
-    for n in ["integer", "int", "long", "short", "byte"] {
-        assert_eq!(BuiltIn::from_name(n), Some(BuiltIn::Integer), "{n}");
-    }
-
-    for n in [
-        "nonNegativeInteger",
-        "positiveInteger",
-        "unsignedInt",
-        "unsignedLong",
-        "unsignedShort",
-    ] {
+    for (name, value, want) in cases {
+        let ty = BuiltIn::from_name(name)
+            .unwrap_or_else(|| panic!("`{name}` must resolve"));
         assert_eq!(
-            BuiltIn::from_name(n),
-            Some(BuiltIn::NonNegativeInteger),
-            "{n}"
+            ty.accepts(value),
+            *want,
+            "{name} should {} {value:?}",
+            if *want { "accept" } else { "reject" }
         );
     }
+}
 
-    for n in ["double", "float"] {
-        assert_eq!(BuiltIn::from_name(n), Some(BuiltIn::Double), "{n}");
+/// Distinct types must not collapse into one another.
+#[test]
+fn the_integer_lattice_is_not_one_type() {
+    let names = [
+        "integer",
+        "long",
+        "int",
+        "short",
+        "byte",
+        "nonNegativeInteger",
+        "unsignedLong",
+        "unsignedInt",
+        "unsignedShort",
+        "unsignedByte",
+        "positiveInteger",
+        "negativeInteger",
+        "nonPositiveInteger",
+    ];
+    let mut seen = Vec::new();
+    for n in names {
+        let ty = BuiltIn::from_name(n).expect("resolves");
+        assert!(!seen.contains(&ty), "`{n}` collapsed into another type");
+        seen.push(ty);
     }
-
-    assert_eq!(BuiltIn::from_name("boolean"), Some(BuiltIn::Boolean));
-    assert_eq!(BuiltIn::from_name("decimal"), Some(BuiltIn::Decimal));
-    assert_eq!(BuiltIn::from_name("date"), Some(BuiltIn::Date));
-    assert_eq!(BuiltIn::from_name("dateTime"), Some(BuiltIn::DateTime));
-    assert_eq!(BuiltIn::from_name("anyURI"), Some(BuiltIn::AnyUri));
+    assert_eq!(seen.len(), names.len());
 }
 
 #[test]
