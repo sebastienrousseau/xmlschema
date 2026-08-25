@@ -363,6 +363,155 @@ impl Datatype {
     }
 }
 
+impl Datatype {
+    /// Whether values of this type are ordered, so `minInclusive` and
+    /// its relatives mean something.
+    ///
+    /// Numbers are the obvious case, but the temporal types are
+    /// ordered too -- and storing a bound as an `f64` silently dropped
+    /// every one of them, because `"2000-01-01".parse::<f64>()` fails.
+    #[must_use]
+    pub const fn is_ordered(self) -> bool {
+        self.is_numeric() || self.is_temporal()
+    }
+
+    /// Whether this is a date, time, duration or gregorian type.
+    #[must_use]
+    pub const fn is_temporal(self) -> bool {
+        matches!(
+            self,
+            Self::Duration
+                | Self::DateTime
+                | Self::Time
+                | Self::Date
+                | Self::GYearMonth
+                | Self::GYear
+                | Self::GMonthDay
+                | Self::GMonth
+                | Self::GDay
+        )
+    }
+
+    /// A sortable key for an ordered value.
+    ///
+    /// Returns `None` when the value does not belong to the type, or
+    /// the type has no ordering. Both sides of a comparison are
+    /// lexical forms of the same type, so both go through here and the
+    /// units cancel.
+    #[must_use]
+    pub fn order_key(self, raw: &str) -> Option<f64> {
+        let v = self.normalise(raw);
+        if !self.accepts_normalised(&v) {
+            return None;
+        }
+        if self.is_numeric() {
+            return v.parse::<f64>().ok();
+        }
+        let body = strip_zone(&v);
+        Some(match self {
+            // Seconds, so every date-like type shares a scale.
+            Self::Date => date_seconds(body)?,
+            Self::DateTime => {
+                let (d, t) = body.split_once('T')?;
+                date_seconds(d)? + time_seconds(strip_zone(t))?
+            }
+            Self::Time => time_seconds(body)?,
+            Self::GYear => year_of(body)? * 31_556_952.0,
+            Self::GYearMonth => {
+                let (y, m) = body.rsplit_once('-')?;
+                year_of(y)? * 12.0 + m.parse::<f64>().ok()?
+            }
+            Self::GMonth => body.strip_prefix("--")?.parse::<f64>().ok()?,
+            Self::GDay => body.strip_prefix("---")?.parse::<f64>().ok()?,
+            Self::GMonthDay => {
+                let rest = body.strip_prefix("--")?;
+                let (m, d) = rest.split_once('-')?;
+                m.parse::<f64>().ok()? * 31.0 + d.parse::<f64>().ok()?
+            }
+            // A duration is only partially ordered -- months and days
+            // are not commensurable -- so this uses the average month
+            // the specification itself uses for comparison. Two
+            // durations the specification calls indeterminate compare
+            // by that approximation rather than not at all.
+            Self::Duration => duration_seconds(&v)?,
+            _ => return None,
+        })
+    }
+}
+
+/// `YYYY-MM-DD` as seconds from a fixed epoch.
+///
+/// Days before the year, plus the day of the year. The first version
+/// mixed two epoch formulas -- a leap-adjusted year count with an
+/// unadjusted month sum -- and made `2001-01-01` compare equal to
+/// `2000-12-31`.
+fn date_seconds(v: &str) -> Option<f64> {
+    let mut parts = v.rsplitn(3, '-');
+    let day: i64 = parts.next()?.parse().ok()?;
+    let month: i64 = parts.next()?.parse().ok()?;
+    let year: i64 = parts.next()?.parse().ok()?;
+
+    // Leap years strictly before this one.
+    let prev = year - 1;
+    let leaps = prev / 4 - prev / 100 + prev / 400;
+    let days_before_year = 365 * prev + leaps;
+
+    let year_text = year.to_string();
+    let days_before_month: i64 = (1..month)
+        .filter_map(|m| u32::try_from(m).ok())
+        .map(|m| i64::from(days_in_month(m, &year_text)))
+        .sum();
+
+    // A day count fits an `f64` mantissa for any year the lexical
+    // form can express, so the conversion is exact here.
+    let days = days_before_year + days_before_month + day;
+    #[allow(clippy::cast_precision_loss)]
+    Some(days as f64 * 86_400.0)
+}
+
+fn time_seconds(v: &str) -> Option<f64> {
+    let mut parts = v.split(':');
+    let h: f64 = parts.next()?.parse().ok()?;
+    let m: f64 = parts.next()?.parse().ok()?;
+    let s: f64 = parts.next()?.parse().ok()?;
+    Some(h * 3600.0 + m * 60.0 + s)
+}
+
+fn year_of(v: &str) -> Option<f64> {
+    v.parse::<f64>().ok()
+}
+
+/// A duration in seconds, using the average month the specification
+/// uses when it needs a total order.
+fn duration_seconds(v: &str) -> Option<f64> {
+    let negative = v.starts_with('-');
+    let body = v.trim_start_matches('-').strip_prefix('P')?;
+    let (date, time) = match body.split_once('T') {
+        Some((d, t)) => (d, t),
+        None => (body, ""),
+    };
+    let mut total = 0.0;
+    for (part, units) in [
+        (
+            date,
+            [('Y', 31_556_952.0), ('M', 2_629_746.0), ('D', 86_400.0)],
+        ),
+        (time, [('H', 3600.0), ('M', 60.0), ('S', 1.0)]),
+    ] {
+        let mut digits = String::new();
+        for c in part.chars() {
+            if c.is_ascii_digit() || c == '.' {
+                digits.push(c);
+            } else if let Some((_, scale)) = units.iter().find(|(d, _)| *d == c)
+            {
+                total += digits.parse::<f64>().ok()? * scale;
+                digits.clear();
+            }
+        }
+    }
+    Some(if negative { -total } else { total })
+}
+
 const fn is_xml_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r')
 }

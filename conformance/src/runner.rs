@@ -30,6 +30,24 @@ pub struct Record {
     pub would_have_matched: bool,
     /// The first construct that stopped the schema being enforced.
     pub reason: Option<String>,
+    /// Which way a failure went, which decides how bad it is.
+    pub direction: Option<Direction>,
+    /// The first violation reported, for grouping failures by cause.
+    pub detail: Option<String>,
+}
+
+/// Which way a disagreement went.
+///
+/// The two are not equally bad. Rejecting a document the suite calls
+/// valid breaks a caller whose schema is correct; accepting one the
+/// suite calls invalid is a check that is missing. The first is the
+/// one to fix first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    /// Expected valid, reported invalid -- over-strict.
+    WronglyRejected,
+    /// Expected invalid, reported valid -- under-strict.
+    WronglyAccepted,
 }
 
 /// Run every case.
@@ -55,35 +73,89 @@ pub fn run_one(case: &Case) -> Record {
         outcome: Outcome::Blocked,
         would_have_matched: false,
         reason: None,
+        direction: None,
+        detail: None,
     };
 
     // A panic is a result, not an abort: the point of running forty
     // thousand hostile documents is to find one.
     let outcome = catch_unwind(AssertUnwindSafe(|| decide(case)));
     match outcome {
-        Ok((outcome, matched, reason)) => {
-            record.outcome = outcome;
-            record.would_have_matched = matched;
-            record.reason = reason;
+        Ok(decided) => {
+            record.outcome = decided.outcome;
+            record.would_have_matched = decided.matched;
+            record.reason = decided.reason;
+            record.direction = decided.direction;
+            record.detail = decided.detail;
         }
         Err(_) => record.outcome = Outcome::Panic,
     }
     record
 }
 
-/// The outcome, whether an unsupported answer would have agreed, and
-/// why the schema was not enforced in full.
-fn decide(case: &Case) -> (Outcome, bool, Option<String>) {
+/// Everything `decide` works out about one case.
+struct Decided {
+    outcome: Outcome,
+    matched: bool,
+    reason: Option<String>,
+    direction: Option<Direction>,
+    detail: Option<String>,
+}
+
+impl Decided {
+    fn new(outcome: Outcome, matched: bool) -> Self {
+        Self {
+            outcome,
+            matched,
+            reason: None,
+            direction: None,
+            detail: None,
+        }
+    }
+
+    fn because(mut self, reason: impl Into<String>) -> Self {
+        self.reason = Some(reason.into());
+        self
+    }
+}
+
+/// Classify an answer that did not match, and say why.
+fn judged(
+    matched: bool,
+    expected_valid: bool,
+    detail: Option<String>,
+) -> Decided {
+    let mut d = Decided::new(
+        if matched {
+            Outcome::Pass
+        } else {
+            Outcome::Fail
+        },
+        matched,
+    );
+    if !matched {
+        d.direction = Some(if expected_valid {
+            Direction::WronglyRejected
+        } else {
+            Direction::WronglyAccepted
+        });
+        d.detail = detail;
+    }
+    d
+}
+
+/// Decide one case.
+fn decide(case: &Case) -> Decided {
     let Some(schema_path) = case.schema.as_ref() else {
-        return (
-            Outcome::Blocked,
-            false,
-            Some("the group names no schema document".into()),
-        );
+        return Decided::new(Outcome::Blocked, false)
+            .because("the group names no schema document");
     };
     let Ok(schema_src) = std::fs::read_to_string(schema_path) else {
-        return (Outcome::Blocked, false, Some("schema unreadable".into()));
+        return Decided::new(Outcome::Blocked, false)
+            .because("schema unreadable");
     };
+
+    let expected_valid = case.expected == Expected::Valid;
 
     // Whether the schema is enforced in full is decided from the
     // schema document itself, independently of whether it parses.
@@ -102,65 +174,58 @@ fn decide(case: &Case) -> (Outcome, bool, Option<String>) {
     // A schema test asks whether the schema itself is valid.
     let Some(instance_path) = case.instance.as_ref() else {
         let answered_valid = parsed.is_ok();
-        let matched = answered_valid == (case.expected == Expected::Valid);
+        let matched = answered_valid == expected_valid;
+        let detail = parsed.as_ref().err().map(|e| e.message.clone());
         // Rejecting a schema is a definite answer about that schema
         // even when parts of it would not have been enforced, but
         // *accepting* one whose constructs were skipped is not.
         if !gaps.is_empty() && answered_valid {
-            return (Outcome::Unsupported, matched, reason);
+            let mut d = Decided::new(Outcome::Unsupported, matched);
+            d.reason = reason;
+            return d;
         }
-        return (
-            if matched {
-                Outcome::Pass
-            } else {
-                Outcome::Fail
-            },
-            matched,
-            reason,
-        );
+        let mut d = judged(matched, expected_valid, detail);
+        d.reason = reason;
+        return d;
     };
 
     // An instance test needs the schema to have parsed at all.
-    let Ok(schema) = parsed else {
-        return (
-            Outcome::Blocked,
-            false,
-            Some("the schema did not parse".into()),
-        );
+    let schema = match parsed {
+        Ok(schema) => schema,
+        Err(e) => {
+            return Decided::new(Outcome::Blocked, false)
+                .because(format!("the schema did not parse: {}", e.message));
+        }
     };
     let Ok(instance_src) = std::fs::read_to_string(instance_path) else {
-        return (Outcome::Blocked, false, Some("instance unreadable".into()));
+        return Decided::new(Outcome::Blocked, false)
+            .because("instance unreadable");
     };
     let Ok(instance) = oxml::parse(&instance_src) else {
         // The suite includes instances that are not well-formed, and
         // expects them to be invalid.
-        let matched = case.expected == Expected::Invalid;
-        return (
-            if matched {
-                Outcome::Pass
-            } else {
-                Outcome::Fail
-            },
+        let matched = !expected_valid;
+        let mut d = judged(
             matched,
-            reason,
+            expected_valid,
+            Some("the instance is not well-formed XML".to_owned()),
         );
+        d.reason = reason;
+        return d;
     };
 
     let report = xmlschema::validate(&instance, &schema);
-    let matched = report.is_valid() == (case.expected == Expected::Valid);
+    let matched = report.is_valid() == expected_valid;
+    let detail = report.violations.first().map(|v| v.message.clone());
 
     if gaps.is_empty() {
-        return (
-            if matched {
-                Outcome::Pass
-            } else {
-                Outcome::Fail
-            },
-            matched,
-            reason,
-        );
+        let mut d = judged(matched, expected_valid, detail);
+        d.reason = reason;
+        return d;
     }
     // Something was skipped, so this answer is not evidence either
     // way -- including when it agrees.
-    (Outcome::Unsupported, matched, reason)
+    let mut d = Decided::new(Outcome::Unsupported, matched);
+    d.reason = reason;
+    d
 }

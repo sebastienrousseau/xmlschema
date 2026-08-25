@@ -80,14 +80,18 @@ pub struct Facets {
     pub max_length: Option<usize>,
     /// `xs:length`
     pub length: Option<usize>,
-    /// `xs:minInclusive`
-    pub min_inclusive: Option<f64>,
-    /// `xs:maxInclusive`
-    pub max_inclusive: Option<f64>,
-    /// `xs:minExclusive`
-    pub min_exclusive: Option<f64>,
-    /// `xs:maxExclusive`
-    pub max_exclusive: Option<f64>,
+    /// `xs:minInclusive`, as written.
+    ///
+    /// Kept lexically rather than as a number: a bound on a date or a
+    /// duration is ordered too, and `"2000-01-01".parse::<f64>()`
+    /// fails, which silently dropped every temporal bound.
+    pub min_inclusive: Option<String>,
+    /// `xs:maxInclusive`, as written.
+    pub max_inclusive: Option<String>,
+    /// `xs:minExclusive`, as written.
+    pub min_exclusive: Option<String>,
+    /// `xs:maxExclusive`, as written.
+    pub max_exclusive: Option<String>,
     /// `xs:totalDigits` — the count of significant digits.
     pub total_digits: Option<usize>,
     /// `xs:fractionDigits` — the count of digits after the point.

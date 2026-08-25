@@ -283,3 +283,68 @@ fn the_whitespace_facet_applies_before_validation() {
     assert!(!accepts("replace", "\ta\tb\t"), "still five characters");
     assert!(accepts("collapse", "\ta\tb\t"), "collapses to three");
 }
+
+/// Bounds apply to dates, times and durations, not only to numbers.
+///
+/// They were stored as `f64`, so `minInclusive="2000-01-01"` failed to
+/// parse and the facet was dropped in silence — the schema looked
+/// constrained and enforced nothing.
+#[test]
+fn bounds_apply_to_temporal_types() {
+    let bounded = |ty: &str, min: &str, max: &str| {
+        format!(
+            r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:{ty}">
+        <xs:minInclusive value="{min}"/>
+        <xs:maxInclusive value="{max}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#
+        )
+    };
+    let accepts = |ty: &str, min: &str, max: &str, v: &str| {
+        let schema = parse_schema(&bounded(ty, min, max)).expect("parses");
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+
+    // date
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-06-15"));
+    assert!(!accepts("date", "2000-01-01", "2000-12-31", "1999-12-31"));
+    assert!(!accepts("date", "2000-01-01", "2000-12-31", "2001-01-01"));
+    // The boundaries themselves are inclusive.
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-01-01"));
+    assert!(accepts("date", "2000-01-01", "2000-12-31", "2000-12-31"));
+
+    // dateTime orders within a day, not just across days.
+    assert!(accepts(
+        "dateTime",
+        "2000-01-01T00:00:00",
+        "2000-01-01T12:00:00",
+        "2000-01-01T06:00:00"
+    ));
+    assert!(!accepts(
+        "dateTime",
+        "2000-01-01T00:00:00",
+        "2000-01-01T12:00:00",
+        "2000-01-01T18:00:00"
+    ));
+
+    // duration, where a year outranks a day.
+    assert!(accepts("duration", "P1D", "P1Y", "P6M"));
+    assert!(!accepts("duration", "P1D", "P1Y", "P2Y"));
+
+    // gYear and gMonth are ordered too.
+    assert!(accepts("gYear", "1999", "2001", "2000"));
+    assert!(!accepts("gYear", "1999", "2001", "2002"));
+    assert!(accepts("gMonth", "--03", "--09", "--06"));
+    assert!(!accepts("gMonth", "--03", "--09", "--11"));
+
+    // And the numeric case still works.
+    assert!(accepts("integer", "1", "10", "5"));
+    assert!(!accepts("integer", "1", "10", "11"));
+}

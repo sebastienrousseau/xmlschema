@@ -705,7 +705,6 @@ fn check_facets(
         }
     }
 
-    // Numeric bounds only mean something for numeric bases.
     // Digit counts are defined on the *value*, so a sign, leading
     // zeros and a trailing zero fraction do not count. `01.20` has two
     // total digits and one fraction digit, not four and two.
@@ -727,30 +726,38 @@ fn check_facets(
         }
     }
 
-    if base.is_numeric() {
-        if let Ok(n) = value.trim().parse::<f64>() {
-            if let Some(b) = facets.min_inclusive {
-                if n < b {
-                    return Err(format!("{value} must be at least {b}"));
-                }
+    // Bounds apply to every *ordered* type, which includes the dates,
+    // times and durations as well as the numbers. Both sides are
+    // lexical forms of the same type, so both convert through the
+    // datatype and the units cancel.
+    if base.is_ordered() {
+        let Some(n) = base.order_key(value) else {
+            return Ok(());
+        };
+        let bound = |raw: &Option<String>| {
+            raw.as_deref()
+                .and_then(|b| base.order_key(b).map(|k| (b.to_owned(), k)))
+        };
+        if let Some((text, b)) = bound(&facets.min_inclusive) {
+            if n < b {
+                return Err(format!("{value} must be at least {text}"));
             }
-            if let Some(b) = facets.max_inclusive {
-                if n > b {
-                    return Err(format!("{value} must be at most {b}"));
-                }
+        }
+        if let Some((text, b)) = bound(&facets.max_inclusive) {
+            if n > b {
+                return Err(format!("{value} must be at most {text}"));
             }
-            if let Some(b) = facets.min_exclusive {
-                if n <= b {
-                    return Err(format!("{value} must be greater than {b}"));
-                }
+        }
+        if let Some((text, b)) = bound(&facets.min_exclusive) {
+            if n <= b {
+                return Err(format!("{value} must be greater than {text}"));
             }
-            if let Some(b) = facets.max_exclusive {
-                if n >= b {
-                    return Err(format!("{value} must be less than {b}"));
-                }
+        }
+        if let Some((text, b)) = bound(&facets.max_exclusive) {
+            if n >= b {
+                return Err(format!("{value} must be less than {text}"));
             }
         }
     }
-
     Ok(())
 }

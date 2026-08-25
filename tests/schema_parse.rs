@@ -65,9 +65,44 @@ fn a_non_schema_root_is_rejected() {
 }
 
 #[test]
-fn a_schema_with_no_top_level_elements_is_rejected() {
-    let e = parse_schema(&schema("")).expect_err("nothing declared");
-    assert!(e.to_string().contains("top-level"), "{e}");
+fn a_schema_need_not_declare_a_top_level_element() {
+    // This used to assert the opposite. A schema whose purpose is to
+    // be imported declares types, groups or attributes and no
+    // elements at all, and refusing those rejected 282 schemas the
+    // W3C suite calls valid.
+    let only_a_type = parse_schema(&schema(
+        r#"<xs:simpleType name="code">
+             <xs:restriction base="xs:string">
+               <xs:maxLength value="4"/>
+             </xs:restriction>
+           </xs:simpleType>"#,
+    ))
+    .expect("a schema of types alone is valid");
+    assert!(only_a_type.elements.is_empty());
+    assert!(only_a_type.named_simple_types.contains_key("code"));
+
+    // An entirely empty schema is still a schema.
+    assert!(parse_schema(&schema("")).is_ok());
+}
+
+/// A reference this schema cannot resolve names something in an
+/// imported namespace, which is unenforceable here -- not invalid.
+#[test]
+fn an_unresolvable_reference_is_not_a_schema_error() {
+    let s = parse_schema(&schema(
+        r#"<xs:element name="r">
+             <xs:complexType><xs:sequence>
+               <xs:element ref="other:thing"/>
+             </xs:sequence></xs:complexType>
+           </xs:element>"#,
+    ))
+    .expect("an unresolved ref does not invalidate the schema");
+
+    // It keeps its name and cardinality so ordering still works, and
+    // accepts any content because there is nothing to check against.
+    let doc = oxml::parse("<r><thing>anything at all</thing></r>")
+        .expect("well-formed");
+    assert!(validate(&doc, &s).is_valid());
 }
 
 #[test]

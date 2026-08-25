@@ -185,9 +185,9 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
         }
     }
 
-    if schema.elements.is_empty() {
-        return err("the schema declares no top-level elements");
-    }
+    // A schema declaring only types, groups or attributes is
+    // perfectly valid -- it exists to be imported. Refusing it
+    // rejected 282 schemas the W3C suite calls valid.
     Ok(schema)
 }
 
@@ -231,13 +231,16 @@ fn parse_element(ctx: &Ctx, id: NodeId) -> Result<Particle, SchemaError> {
     // an unresolved ref left the element unconstrained.
     if let Some(reference) = doc.attribute(id, "ref") {
         let local = reference.rsplit(':').next().unwrap_or(reference);
+        // A reference this schema cannot resolve almost always names
+        // something in an imported namespace, and `xs:import` is not
+        // supported. Treating that as an invalid *schema* rejected 424
+        // schemas the suite calls valid. It is not enforceable, which
+        // `support::unsupported` reports; it is not wrong.
         let Some(&target) = ctx.tops.elements.get(local) else {
-            return err(format!(
-                "xs:element references {reference:?}, which is not declared"
-            ));
+            return Ok(unenforceable_element(local, parse_occurs(doc, id)));
         };
         let Some(inner) = ctx.deeper() else {
-            return err("the chain of element references is too deep");
+            return Ok(unenforceable_element(local, parse_occurs(doc, id)));
         };
         let mut particle = parse_element(&inner, target)?;
         particle.occurs = parse_occurs(doc, id);
@@ -312,6 +315,24 @@ fn any_attribute_of(ctx: &Ctx, id: NodeId) -> Option<Wildcard> {
         .into_iter()
         .find_map(|p| first_child_named(doc, p, "anyAttribute"))
         .map(|node| parse_wildcard(ctx, node))
+}
+
+/// A particle for a reference that cannot be resolved here.
+///
+/// It keeps the name and cardinality so ordering still works, and
+/// accepts any content, because this schema has nothing to check it
+/// against. `support::unsupported` reports the import that caused it.
+fn unenforceable_element(name: &str, occurs: Occurs) -> Particle {
+    Particle {
+        name: name.to_owned(),
+        occurs,
+        content: Box::new(Content::Any),
+        attributes: Vec::new(),
+        fixed: None,
+        nillable: true,
+        wildcard: None,
+        any_attribute: None,
+    }
 }
 
 fn resolve_named_type(ctx: &Ctx, name: &str) -> Content {
@@ -434,12 +455,12 @@ fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
             };
             let local = reference.rsplit(':').next().unwrap_or(reference);
             let Some(&target) = ctx.tops.groups.get(local) else {
-                return err(format!(
-                    "xs:group references {reference:?}, which is not declared"
-                ));
+                // As for an element reference: unresolvable means
+                // unenforceable, not invalid.
+                return Ok(Content::Any);
             };
             let Some(inner) = ctx.deeper() else {
-                return err("the chain of group references is too deep");
+                return Ok(Content::Any);
             };
             match model_group(doc, target) {
                 Some(group) => parse_model_group(&inner, group),
@@ -599,16 +620,10 @@ fn parse_attributes_uncached(
                         reference.rsplit(':').next().unwrap_or(reference);
                     let Some(&target) = ctx.tops.attribute_groups.get(local)
                     else {
-                        return err(format!(
-                            "xs:attributeGroup references {reference:?}, \
-                             which is not declared"
-                        ));
+                        continue;
                     };
                     let Some(inner) = ctx.deeper() else {
-                        return err(
-                            "the chain of attribute group references is \
-                             too deep",
-                        );
+                        continue;
                     };
                     out.extend(parse_attributes(&inner, target)?);
                 }
@@ -644,12 +659,10 @@ fn parse_attribute(
     if let Some(reference) = doc.attribute(id, "ref") {
         let local = reference.rsplit(':').next().unwrap_or(reference);
         let Some(&target) = ctx.tops.attributes.get(local) else {
-            return err(format!(
-                "xs:attribute references {reference:?}, which is not declared"
-            ));
+            return Ok(None);
         };
         let Some(inner) = ctx.deeper() else {
-            return err("the chain of attribute references is too deep");
+            return Ok(None);
         };
         let Some(mut decl) = parse_attribute(&inner, target)? else {
             return Ok(None);
@@ -736,10 +749,18 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
             "minLength" => facets.min_length = value.parse().ok(),
             "maxLength" => facets.max_length = value.parse().ok(),
             "length" => facets.length = value.parse().ok(),
-            "minInclusive" => facets.min_inclusive = value.parse().ok(),
-            "maxInclusive" => facets.max_inclusive = value.parse().ok(),
-            "minExclusive" => facets.min_exclusive = value.parse().ok(),
-            "maxExclusive" => facets.max_exclusive = value.parse().ok(),
+            "minInclusive" => {
+                facets.min_inclusive = Some(value.to_owned());
+            }
+            "maxInclusive" => {
+                facets.max_inclusive = Some(value.to_owned());
+            }
+            "minExclusive" => {
+                facets.min_exclusive = Some(value.to_owned());
+            }
+            "maxExclusive" => {
+                facets.max_exclusive = Some(value.to_owned());
+            }
             "totalDigits" => facets.total_digits = value.parse().ok(),
             "fractionDigits" => facets.fraction_digits = value.parse().ok(),
             "whiteSpace" => {

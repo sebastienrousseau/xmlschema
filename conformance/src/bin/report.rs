@@ -52,6 +52,72 @@ fn main() -> Result<(), String> {
         );
     }
 
+    // Failures, split by direction. Wrongly rejecting a valid
+    // document breaks a caller whose schema is correct; wrongly
+    // accepting an invalid one is a check that is missing. They are
+    // not the same severity and are not fixed the same way.
+    let rejected: Vec<&runner::Record> = records
+        .iter()
+        .filter(|r| r.direction == Some(runner::Direction::WronglyRejected))
+        .collect();
+    let accepted: Vec<&runner::Record> = records
+        .iter()
+        .filter(|r| r.direction == Some(runner::Direction::WronglyAccepted))
+        .collect();
+    println!(
+        "\nfailures: {} wrongly rejected (valid, called invalid), \
+         {} wrongly accepted (invalid, called valid)",
+        rejected.len(),
+        accepted.len()
+    );
+
+    // Wrongly *rejected* carries a violation message, which says what
+    // went wrong. Wrongly *accepted* carries none -- there were no
+    // violations, which is the problem -- so those group by what the
+    // suite's own test name says the case is about.
+    let mut causes: BTreeMap<String, usize> = BTreeMap::new();
+    for r in &rejected {
+        let detail = r.detail.as_deref().unwrap_or("(no message)");
+        let key: String = detail
+            .split(|c: char| c == '`' || c == '\'')
+            .step_by(2)
+            .collect::<Vec<_>>()
+            .join("_")
+            .chars()
+            .take(72)
+            .collect();
+        *causes.entry(key).or_default() += 1;
+    }
+    let mut ranked: Vec<_> = causes.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    println!("\nwrongly rejected, by message:");
+    for (cause, n) in ranked.iter().take(15) {
+        println!("  {n:>6}  {cause}");
+    }
+
+    let mut families: BTreeMap<String, usize> = BTreeMap::new();
+    for r in &accepted {
+        // The suite names a group by feature and number, so the
+        // leading letters identify what is being tested.
+        let head = r.id.split('/').next().unwrap_or(&r.id);
+        let family: String =
+            head.chars().take_while(|c| !c.is_ascii_digit()).collect();
+        let family = if family.is_empty() {
+            head.chars().take(24).collect()
+        } else {
+            family
+        };
+        *families
+            .entry(format!("{family}  [{}]", r.set))
+            .or_default() += 1;
+    }
+    let mut ranked: Vec<_> = families.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    println!("\nwrongly accepted, by test family:");
+    for (family, n) in ranked.iter().take(20) {
+        println!("  {n:>6}  {family}");
+    }
+
     let mut reasons: BTreeMap<&str, usize> = BTreeMap::new();
     for r in &records {
         if r.outcome == Outcome::Unsupported {
