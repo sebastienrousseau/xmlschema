@@ -56,8 +56,7 @@ fn main() -> Result<(), String> {
     for r in &records {
         if r.outcome == Outcome::Unsupported {
             if let Some(reason) = r.reason.as_deref() {
-                let head =
-                    reason.split_once(": ").map_or(reason, |(c, _)| c);
+                let head = reason.split_once(": ").map_or(reason, |(c, _)| c);
                 *reasons.entry(head).or_default() += 1;
             }
         }

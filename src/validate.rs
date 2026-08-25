@@ -302,71 +302,11 @@ fn check_simple(value: &str, st: &SimpleType) -> Result<(), String> {
 }
 
 fn check_builtin(value: &str, base: BuiltIn) -> Result<(), String> {
-    let v = value.trim();
-    let ok = match base {
-        BuiltIn::String | BuiltIn::AnyUri => true,
-        BuiltIn::Boolean => {
-            matches!(v, "true" | "false" | "1" | "0")
-        }
-        BuiltIn::Decimal | BuiltIn::Double => v.parse::<f64>().is_ok(),
-        BuiltIn::Integer => v.parse::<i64>().is_ok(),
-        BuiltIn::NonNegativeInteger => v.parse::<u64>().is_ok(),
-        BuiltIn::Date => is_date(v),
-        BuiltIn::DateTime => {
-            // Split at the mandatory `T`; the time half is checked
-            // loosely because timezone forms are numerous and the
-            // failure mode of accepting an odd offset is far milder
-            // than rejecting a valid one.
-            v.split_once('T').is_some_and(|(d, t)| {
-                is_date(d) && t.len() >= 8 && t.as_bytes()[2] == b':'
-            })
-        }
-    };
-    if ok {
+    if base.accepts(value) {
         Ok(())
     } else {
-        Err(format!(
-            "`{value}` is not a valid {}",
-            describe_builtin(base)
-        ))
+        Err(format!("`{value}` is not a valid {}", base.describe()))
     }
-}
-
-fn describe_builtin(base: BuiltIn) -> &'static str {
-    match base {
-        BuiltIn::String => "string",
-        BuiltIn::Boolean => "boolean (true, false, 1 or 0)",
-        BuiltIn::Decimal => "decimal",
-        BuiltIn::Integer => "integer",
-        BuiltIn::NonNegativeInteger => "non-negative integer",
-        BuiltIn::Double => "double",
-        BuiltIn::Date => "date (YYYY-MM-DD)",
-        BuiltIn::DateTime => "dateTime (YYYY-MM-DDThh:mm:ss)",
-        BuiltIn::AnyUri => "URI",
-    }
-}
-
-/// `YYYY-MM-DD`, with real range checks on the parts.
-fn is_date(v: &str) -> bool {
-    let parts: Vec<&str> = v.split('-').collect();
-    // A leading `-` makes a BCE year, so the split yields an empty
-    // first part; both shapes carry the same three fields.
-    let (y, m, d) = match parts.as_slice() {
-        [y, m, d] | ["", y, m, d] => (*y, *m, *d),
-        _ => return false,
-    };
-    if y.len() < 4 || m.len() != 2 || d.len() != 2 {
-        return false;
-    }
-    let (Ok(_year), Ok(month), Ok(day)) = (
-        y.parse::<i32>(),
-        m.parse::<u32>(),
-        // The day may carry a timezone suffix on dateTime's date half.
-        d.get(..2).unwrap_or(d).parse::<u32>(),
-    ) else {
-        return false;
-    };
-    (1..=12).contains(&month) && (1..=31).contains(&day)
 }
 
 fn check_facets(
@@ -429,13 +369,7 @@ fn check_facets(
     }
 
     // Numeric bounds only mean something for numeric bases.
-    if matches!(
-        base,
-        BuiltIn::Decimal
-            | BuiltIn::Double
-            | BuiltIn::Integer
-            | BuiltIn::NonNegativeInteger
-    ) {
+    if base.is_numeric() {
         if let Ok(n) = value.trim().parse::<f64>() {
             if let Some(b) = facets.min_inclusive {
                 if n < b {

@@ -110,7 +110,11 @@ fn decide(case: &Case) -> (Outcome, bool, Option<String>) {
             return (Outcome::Unsupported, matched, reason);
         }
         return (
-            if matched { Outcome::Pass } else { Outcome::Fail },
+            if matched {
+                Outcome::Pass
+            } else {
+                Outcome::Fail
+            },
             matched,
             reason,
         );
@@ -132,7 +136,11 @@ fn decide(case: &Case) -> (Outcome, bool, Option<String>) {
         // expects them to be invalid.
         let matched = case.expected == Expected::Invalid;
         return (
-            if matched { Outcome::Pass } else { Outcome::Fail },
+            if matched {
+                Outcome::Pass
+            } else {
+                Outcome::Fail
+            },
             matched,
             reason,
         );
@@ -143,7 +151,11 @@ fn decide(case: &Case) -> (Outcome, bool, Option<String>) {
 
     if gaps.is_empty() {
         return (
-            if matched { Outcome::Pass } else { Outcome::Fail },
+            if matched {
+                Outcome::Pass
+            } else {
+                Outcome::Fail
+            },
             matched,
             reason,
         );

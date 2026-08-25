@@ -57,53 +57,14 @@ impl Occurs {
 
 /// A built-in XSD simple type.
 ///
-/// Only the datatypes that carry a distinct *validation rule* are
-/// modelled. `xs:token` and `xs:normalizedString`, for instance,
-/// differ from `xs:string` in whitespace handling rather than in what
-/// they accept, and are treated as strings here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuiltIn {
-    /// `xs:string` and its whitespace-variant relatives.
-    String,
-    /// `xs:boolean` — `true`, `false`, `1`, `0`.
-    Boolean,
-    /// `xs:decimal`
-    Decimal,
-    /// `xs:integer`, `xs:int`, `xs:long`, `xs:short`.
-    Integer,
-    /// `xs:nonNegativeInteger`, `xs:positiveInteger` and friends.
-    NonNegativeInteger,
-    /// `xs:double` and `xs:float`.
-    Double,
-    /// `xs:date` — `YYYY-MM-DD`.
-    Date,
-    /// `xs:dateTime`
-    DateTime,
-    /// `xs:anyURI`
-    AnyUri,
-}
-
-impl BuiltIn {
-    /// Resolve an XSD type name, ignoring any namespace prefix.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        let local = name.rsplit(':').next().unwrap_or(name);
-        Some(match local {
-            "string" | "normalizedString" | "token" | "NMTOKEN" | "Name"
-            | "NCName" | "ID" | "IDREF" | "language" => Self::String,
-            "boolean" => Self::Boolean,
-            "decimal" => Self::Decimal,
-            "integer" | "int" | "long" | "short" | "byte" => Self::Integer,
-            "nonNegativeInteger" | "positiveInteger" | "unsignedInt"
-            | "unsignedLong" | "unsignedShort" => Self::NonNegativeInteger,
-            "double" | "float" => Self::Double,
-            "date" => Self::Date,
-            "dateTime" => Self::DateTime,
-            "anyURI" => Self::AnyUri,
-            _ => return None,
-        })
-    }
-}
+/// A built-in XSD datatype.
+///
+/// Re-exported from [`crate::datatype`], where every built-in is
+/// modelled separately. It used to be a nine-variant summary that
+/// folded `xs:byte` into an unbounded integer and `xs:NCName` into a
+/// string; a schema using either then accepted values the
+/// specification rejects, silently.
+pub use crate::datatype::Datatype as BuiltIn;
 
 /// Constraints narrowing a simple type.
 #[derive(Debug, Clone, Default, PartialEq)]

@@ -72,25 +72,7 @@ const HANDLED_ELEMENTS: &[&str] = &[
 /// These are the dangerous ones: the schema parses, validation runs,
 /// and the answer is wrong only for values the real type would have
 /// rejected. A document that happens to be valid agrees either way.
-const LOSSY_BUILT_INS: &[(&str, &str)] = &[
-    ("normalizedString", "line-ending normalisation is not checked"),
-    ("token", "whitespace collapsing is not checked"),
-    ("NMTOKEN", "validated as xs:string; the name production is not checked"),
-    ("Name", "validated as xs:string; the name production is not checked"),
-    ("NCName", "validated as xs:string; the name production is not checked"),
-    ("ID", "validated as xs:string; uniqueness is not checked"),
-    ("IDREF", "validated as xs:string; the reference is not resolved"),
-    ("language", "validated as xs:string; the tag syntax is not checked"),
-    ("int", "validated as an unbounded integer; the 32-bit range is not checked"),
-    ("long", "validated as an unbounded integer; the 64-bit range is not checked"),
-    ("short", "validated as an unbounded integer; the 16-bit range is not checked"),
-    ("byte", "validated as an unbounded integer; the 8-bit range is not checked"),
-    ("unsignedInt", "validated as nonNegativeInteger; the upper bound is not checked"),
-    ("unsignedLong", "validated as nonNegativeInteger; the upper bound is not checked"),
-    ("unsignedShort", "validated as nonNegativeInteger; the upper bound is not checked"),
-    ("positiveInteger", "validated as nonNegativeInteger; zero is not excluded"),
-    ("float", "validated as xs:double; single precision is not applied"),
-];
+const LOSSY_BUILT_INS: &[(&str, &str)] = &[];
 
 /// Every construct in `doc` that this crate does not enforce.
 ///
@@ -174,7 +156,10 @@ fn check_element(
         ("form", "qualification is not applied"),
         ("block", "the blocking constraint is not applied"),
         ("final", "the derivation constraint is not applied"),
-        ("mixed", "mixed content is not distinguished from element-only"),
+        (
+            "mixed",
+            "mixed content is not distinguished from element-only",
+        ),
         ("ref", "the reference is not resolved"),
     ] {
         if doc.attribute(id, attribute).is_some() {
@@ -202,8 +187,7 @@ fn check_type_reference(
     out: &mut Vec<Unsupported>,
 ) {
     let local = type_name.rsplit(':').next().unwrap_or(type_name);
-    if let Some((_, effect)) =
-        LOSSY_BUILT_INS.iter().find(|(n, _)| *n == local)
+    if let Some((_, effect)) = LOSSY_BUILT_INS.iter().find(|(n, _)| *n == local)
     {
         out.push(Unsupported {
             construct: format!("xs:{local}"),
@@ -221,22 +205,11 @@ fn check_type_reference(
     });
 }
 
-/// The built-ins carried at full strength.
+/// The built-ins carried at full strength, which is now all of them:
+/// [`crate::datatype`] models every XSD 1.0 built-in separately, so a
+/// name it resolves is a name this crate enforces.
 fn oxml_builtin(local: &str) -> bool {
-    matches!(
-        local,
-        "string"
-            | "boolean"
-            | "decimal"
-            | "integer"
-            | "nonNegativeInteger"
-            | "double"
-            | "date"
-            | "dateTime"
-            | "anyURI"
-            | "anyType"
-            | "anySimpleType"
-    )
+    crate::datatype::Datatype::from_name(local).is_some()
 }
 
 /// Whether the schema declares a named type with this local name.

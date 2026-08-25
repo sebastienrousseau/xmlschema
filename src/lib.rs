@@ -94,6 +94,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod datatype;
 pub mod model;
 pub mod parse;
 pub mod pattern;
