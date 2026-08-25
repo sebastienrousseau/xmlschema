@@ -95,6 +95,7 @@
 #![warn(missing_docs)]
 
 pub mod datatype;
+pub mod derive;
 pub mod model;
 pub mod parse;
 pub mod pattern;

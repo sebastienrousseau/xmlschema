@@ -485,3 +485,144 @@ fn a_restricted_wildcard_may_not_widen_its_namespaces() {
     assert!(with("##any", r#"processContents="lax""#).is_ok());
     assert!(with("##any", r#"processContents="skip""#).is_ok());
 }
+
+/// The subsumption relation, reached through `parse_schema`.
+///
+/// The relation itself is tested directly in `tests/subsumption.rs`;
+/// these check that a schema's content models actually reach it, with
+/// their groups resolved and their base types looked up.
+#[test]
+fn a_restriction_is_checked_against_its_base() {
+    let derived_from = |base: &str, restriction: &str| {
+        parse_schema(&schema(&format!(
+            r#"<xs:complexType name="base">{base}</xs:complexType>
+               <xs:complexType name="derived">
+                 <xs:complexContent>
+                   <xs:restriction base="base">{restriction}</xs:restriction>
+                 </xs:complexContent>
+               </xs:complexType>"#
+        )))
+    };
+
+    // Narrowing an occurrence range is a restriction.
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:element name="a" maxOccurs="unbounded"/></xs:sequence>"#,
+            r#"<xs:sequence><xs:element name="a" maxOccurs="3"/></xs:sequence>"#,
+        )
+        .is_ok()
+    );
+    // Widening it is not.
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:element name="a" maxOccurs="3"/></xs:sequence>"#,
+            r#"<xs:sequence><xs:element name="a" maxOccurs="unbounded"/></xs:sequence>"#,
+        )
+        .is_err()
+    );
+    // Renaming an element is not a restriction of it.
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:element name="a"/></xs:sequence>"#,
+            r#"<xs:sequence><xs:element name="b"/></xs:sequence>"#,
+        )
+        .is_err()
+    );
+    // Dropping an optional particle is fine; dropping a required one
+    // is not.
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:element name="a"/><xs:element name="b" minOccurs="0"/></xs:sequence>"#,
+            r#"<xs:sequence><xs:element name="a"/></xs:sequence>"#,
+        )
+        .is_ok()
+    );
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:element name="a"/><xs:element name="b"/></xs:sequence>"#,
+            r#"<xs:sequence><xs:element name="a"/></xs:sequence>"#,
+        )
+        .is_err()
+    );
+    // Three elements restricting three wildcards, decided on the
+    // group's total range.
+    assert!(
+        derived_from(
+            r#"<xs:sequence><xs:any minOccurs="3" maxOccurs="3"/></xs:sequence>"#,
+            r#"<xs:all><xs:element name="e1"/><xs:element name="e2"/><xs:element name="e3"/></xs:all>"#,
+        )
+        .is_ok()
+    );
+}
+
+/// A group reference is resolved before the relation sees it.
+#[test]
+fn a_restriction_may_state_its_model_through_a_group() {
+    let s = parse_schema(&schema(
+        r#"<xs:group name="g">
+             <xs:sequence><xs:element name="a"/></xs:sequence>
+           </xs:group>
+           <xs:complexType name="base">
+             <xs:sequence>
+               <xs:element name="a"/>
+               <xs:element name="b" minOccurs="0"/>
+             </xs:sequence>
+           </xs:complexType>
+           <xs:complexType name="derived">
+             <xs:complexContent>
+               <xs:restriction base="base"><xs:group ref="g"/></xs:restriction>
+             </xs:complexContent>
+           </xs:complexType>"#,
+    ));
+    assert!(s.is_ok(), "the group resolves to a valid restriction");
+}
+
+/// A derivation chain is walked when comparing element types.
+#[test]
+fn a_derived_type_may_narrow_an_element_type() {
+    let s = parse_schema(&schema(
+        r#"<xs:complexType name="parent">
+             <xs:sequence><xs:element name="x"/></xs:sequence>
+           </xs:complexType>
+           <xs:complexType name="child">
+             <xs:complexContent>
+               <xs:restriction base="parent">
+                 <xs:sequence><xs:element name="x"/></xs:sequence>
+               </xs:restriction>
+             </xs:complexContent>
+           </xs:complexType>
+           <xs:complexType name="base">
+             <xs:sequence><xs:element name="e" type="parent"/></xs:sequence>
+           </xs:complexType>
+           <xs:complexType name="derived">
+             <xs:complexContent>
+               <xs:restriction base="base">
+                 <xs:sequence><xs:element name="e" type="child"/></xs:sequence>
+               </xs:restriction>
+             </xs:complexContent>
+           </xs:complexType>"#,
+    ));
+    assert!(s.is_ok(), "`child` derives from `parent`");
+}
+
+/// Substitution groups make an element particle stand for its whole
+/// group, which this crate does not model — so it declines to decide
+/// rather than reporting a name mismatch.
+#[test]
+fn substitution_groups_suspend_the_check() {
+    let s = parse_schema(&schema(
+        r#"<xs:element name="head"/>
+           <xs:element name="m1" substitutionGroup="head"/>
+           <xs:complexType name="base">
+             <xs:sequence><xs:element ref="head"/></xs:sequence>
+           </xs:complexType>
+           <xs:complexType name="derived">
+             <xs:complexContent>
+               <xs:restriction base="base">
+                 <xs:sequence><xs:element ref="m1"/></xs:sequence>
+               </xs:restriction>
+             </xs:complexContent>
+           </xs:complexType>"#,
+    ));
+    assert!(s.is_ok(), "a member of the group is a valid restriction");
+}
