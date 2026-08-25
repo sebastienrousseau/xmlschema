@@ -381,3 +381,57 @@ fn large_decimals_compare_without_losing_precision() {
     assert!(accepts("-999999999999999999"));
     assert!(accepts("000000000000000001"));
 }
+
+/// A pattern on a list constrains the whole space-separated value.
+///
+/// It was not applied at all, which left every `list-<type>-pattern`
+/// schema accepting anything — around five hundred tests in the W3C
+/// suite.
+#[test]
+fn a_pattern_on_a_list_applies_to_the_whole_value() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction>
+        <xs:simpleType><xs:list itemType="xs:integer"/></xs:simpleType>
+        <xs:pattern value="[0-9]+ [0-9]+"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("12 34"), "two integers, as the pattern requires");
+    assert!(!accepts("12"), "one item does not match the whole form");
+    assert!(!accepts("12 34 56"), "three do not either");
+}
+
+/// `xs:NMTOKENS` is a list type, so its length facets count items.
+#[test]
+fn built_in_list_types_count_items_not_characters() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:NMTOKENS">
+        <xs:minLength value="2"/>
+        <xs:maxLength value="3"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("aa bb"), "two items");
+    assert!(accepts("aa bb cc"), "three items");
+    // One item, but four characters — a character count would pass it.
+    assert!(!accepts("abcd"), "one item is fewer than two");
+    assert!(!accepts("a b c d"), "four items is more than three");
+}

@@ -522,6 +522,15 @@ impl Validator<'_> {
 /// Check a text value against a simple type.
 fn check_simple(value: &str, st: &SimpleType) -> Result<(), String> {
     match &st.variety {
+        // `xs:NMTOKENS`, `xs:IDREFS` and `xs:ENTITIES` are list types
+        // that happen to be built in. Their length facets count
+        // *items*, as any other list's do; counting characters agreed
+        // by accident on short values.
+        Variety::Atomic if st.base.is_built_in_list() => {
+            check_builtin(value, st.base)?;
+            let item = SimpleType::atomic(st.base.item_type());
+            check_list(value, &item, &st.facets)
+        }
         Variety::Atomic => {
             // `whiteSpace` is applied before anything else, because it
             // decides what the value *is*. A restriction may only
@@ -571,6 +580,26 @@ fn check_list(
             return Err(format!("the list has {n} items, more than {max}"));
         }
     }
+    // A pattern on a list applies to the *whole* space-separated
+    // lexical form, not to each item. It was not applied at all,
+    // which left every `list-<type>-pattern` schema in the suite --
+    // some five hundred tests -- accepting anything.
+    if let Some(pattern) = facets.pattern.as_deref() {
+        match Pattern::compile(pattern) {
+            Ok(compiled) => {
+                if !compiled.matches(value) {
+                    return Err(format!(
+                        "`{value}` does not match the pattern `{pattern}`"
+                    ));
+                }
+            }
+            // An uncompilable pattern constrains nothing; it is
+            // reported by `support::unsupported`, not blamed on the
+            // document.
+            Err(_) => return Ok(()),
+        }
+    }
+
     // An enumeration on a list constrains the whole space-separated
     // value, not the individual items.
     if !facets.enumeration.is_empty() {

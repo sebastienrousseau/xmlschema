@@ -286,6 +286,30 @@ impl Datatype {
         }
     }
 
+    /// Whether this built-in is itself a list type.
+    ///
+    /// `xs:NMTOKENS`, `xs:IDREFS` and `xs:ENTITIES` are defined as
+    /// lists of their singular relatives, so their length facets
+    /// count items rather than characters.
+    #[must_use]
+    pub const fn is_built_in_list(self) -> bool {
+        matches!(self, Self::NmTokens | Self::IdRefs | Self::Entities)
+    }
+
+    /// What a built-in list type is a list *of*.
+    ///
+    /// Answers itself for everything else, so a caller need not check
+    /// first.
+    #[must_use]
+    pub const fn item_type(self) -> Self {
+        match self {
+            Self::NmTokens => Self::NmToken,
+            Self::IdRefs => Self::IdRef,
+            Self::Entities => Self::Entity,
+            other => other,
+        }
+    }
+
     /// Whether numeric facets (`minInclusive` and friends) apply.
     #[must_use]
     pub const fn is_numeric(self) -> bool {
