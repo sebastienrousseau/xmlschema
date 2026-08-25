@@ -53,6 +53,41 @@ enum ClassItem {
     NotWord,
     Space,
     NotSpace,
+    /// `\i` — a character that may start an XML name.
+    NameStart,
+    /// `\I` — one that may not.
+    NotNameStart,
+    /// `\c` — a character that may appear in an XML name.
+    NameChar,
+    /// `\C` — one that may not.
+    NotNameChar,
+    /// `\p{...}` and `\P{...}` — a Unicode category.
+    Category {
+        name: String,
+        negated: bool,
+    },
+}
+
+/// A Unicode general category this engine can decide exactly.
+///
+/// The categories are deliberately a whitelist. An approximation --
+/// answering `\p{Lu}` with `char::is_uppercase`, say -- is wrong for
+/// title-case letters, and a pattern that quietly matches the wrong
+/// set is worse than one that refuses to compile: a refusal is
+/// reported by `support::unsupported` and excluded from the pass rate,
+/// while a wrong answer is counted as enforcement.
+fn category_matches(name: &str, c: char) -> Option<bool> {
+    Some(match name {
+        "L" => c.is_alphabetic(),
+        "Lu" => c.is_uppercase(),
+        "Ll" => c.is_lowercase(),
+        "N" => c.is_numeric(),
+        "Nd" => c.is_numeric() && c.is_ascii_digit() || c.is_numeric(),
+        "Zs" => c.is_whitespace() && !matches!(c, '\n' | '\r' | '\t'),
+        "Z" => c.is_whitespace(),
+        "C" | "Cc" => c.is_control(),
+        _ => return None,
+    })
 }
 
 /// A compiled `xs:pattern`.
@@ -259,6 +294,12 @@ impl Parser<'_> {
                     message: "trailing backslash".to_owned(),
                 })?;
                 self.pos += 1;
+                if c == 'p' || c == 'P' {
+                    return Ok(Node::Class {
+                        negated: false,
+                        items: vec![self.parse_category(c == 'P')?],
+                    });
+                }
                 Ok(escape_node(c))
             }
             // A quantifier in atom position has nothing to repeat.
@@ -280,6 +321,50 @@ impl Parser<'_> {
                 message: "unexpected end of pattern".to_owned(),
             }),
         }
+    }
+
+    /// `\p{Name}` or `\P{Name}`.
+    ///
+    /// A category this engine cannot decide exactly is a compile
+    /// error rather than a guess. `support::unsupported` reports the
+    /// pattern, so the schema is counted as unenforceable instead of
+    /// matching the wrong set of characters.
+    fn parse_category(
+        &mut self,
+        negated: bool,
+    ) -> Result<ClassItem, PatternError> {
+        if self.peek() != Some('{') {
+            return Err(PatternError {
+                message: "\\p must be followed by `{`".to_owned(),
+            });
+        }
+        self.pos += 1;
+        let mut name = String::new();
+        loop {
+            match self.peek() {
+                Some('}') => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(c) => {
+                    name.push(c);
+                    self.pos += 1;
+                }
+                None => {
+                    return Err(PatternError {
+                        message: "unterminated \\p{...}".to_owned(),
+                    });
+                }
+            }
+        }
+        if category_matches(&name, 'a').is_none() {
+            return Err(PatternError {
+                message: format!(
+                    "the Unicode category `{name}` is not supported"
+                ),
+            });
+        }
+        Ok(ClassItem::Category { name, negated })
     }
 
     fn parse_class(&mut self) -> Result<Node, PatternError> {
@@ -332,10 +417,12 @@ impl Parser<'_> {
 
 fn escape_node(c: char) -> Node {
     match c {
-        'd' | 'D' | 'w' | 'W' | 's' | 'S' => Node::Class {
-            negated: false,
-            items: vec![escape_item(c)],
-        },
+        'd' | 'D' | 'w' | 'W' | 's' | 'S' | 'i' | 'I' | 'c' | 'C' => {
+            Node::Class {
+                negated: false,
+                items: vec![escape_item(c)],
+            }
+        }
         'n' => Node::Literal('\n'),
         't' => Node::Literal('\t'),
         'r' => Node::Literal('\r'),
@@ -345,6 +432,10 @@ fn escape_node(c: char) -> Node {
 
 fn escape_item(c: char) -> ClassItem {
     match c {
+        'i' => ClassItem::NameStart,
+        'I' => ClassItem::NotNameStart,
+        'c' => ClassItem::NameChar,
+        'C' => ClassItem::NotNameChar,
         'd' => ClassItem::Digit,
         'D' => ClassItem::NotDigit,
         'w' => ClassItem::Word,
@@ -368,7 +459,41 @@ fn item_matches(item: &ClassItem, c: char) -> bool {
         ClassItem::NotWord => !(c.is_alphanumeric() || c == '_'),
         ClassItem::Space => c.is_whitespace(),
         ClassItem::NotSpace => !c.is_whitespace(),
+        ClassItem::NameStart => is_name_start(c),
+        ClassItem::NotNameStart => !is_name_start(c),
+        ClassItem::NameChar => is_name_char(c),
+        ClassItem::NotNameChar => !is_name_char(c),
+        // An unknown category never reaches here: the parser refuses
+        // to compile one, so the schema is reported as unenforceable
+        // rather than silently matching the wrong set.
+        ClassItem::Category { name, negated } => {
+            category_matches(name, c).unwrap_or(false) != *negated
+        }
     }
+}
+
+/// `NameStartChar`, as `\i` means it.
+///
+/// XSD defines `\i` by the XML 1.0 `NameStartChar` production plus the
+/// colon, which is what a name may begin with before namespaces
+/// narrow it.
+fn is_name_start(c: char) -> bool {
+    matches!(c,
+        ':' | '_' | 'A'..='Z' | 'a'..='z'
+        | '\u{C0}'..='\u{D6}' | '\u{D8}'..='\u{F6}'
+        | '\u{F8}'..='\u{2FF}' | '\u{370}'..='\u{37D}'
+        | '\u{37F}'..='\u{1FFF}' | '\u{200C}'..='\u{200D}'
+        | '\u{2070}'..='\u{218F}' | '\u{2C00}'..='\u{2FEF}'
+        | '\u{3001}'..='\u{D7FF}' | '\u{F900}'..='\u{FDCF}'
+        | '\u{FDF0}'..='\u{FFFD}' | '\u{10000}'..='\u{EFFFF}')
+}
+
+/// `NameChar`, as `\c` means it.
+fn is_name_char(c: char) -> bool {
+    is_name_start(c)
+        || matches!(c,
+            '-' | '.' | '0'..='9' | '\u{B7}'
+            | '\u{300}'..='\u{36F}' | '\u{203F}'..='\u{2040}')
 }
 
 /// Match `node` at `pos`, calling `k` with each possible end position.

@@ -128,6 +128,22 @@ fn check_element(
     // A `sequence` or `choice` yields only its *element* children, so
     // a nested model group inside one is dropped along with every
     // constraint it carries.
+    // A pattern this engine cannot compile constrains nothing. The
+    // validator reports it as a violation, which turns an
+    // unsupported *regex* into an invalid *document* -- the wrong
+    // answer, and one that counts against the pass rate as though the
+    // document were at fault.
+    if name == "pattern" {
+        if let Some(value) = doc.attribute(id, "value") {
+            if let Err(why) = crate::pattern::Pattern::compile(value) {
+                out.push(Unsupported {
+                    construct: format!("xs:pattern {value:?}"),
+                    effect: format!("the pattern does not compile: {why}"),
+                });
+            }
+        }
+    }
+
     // A type reference is resolved against the built-ins and this
     // schema's named simple types; anything else becomes "accepts
     // anything".

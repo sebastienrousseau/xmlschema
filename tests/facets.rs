@@ -348,3 +348,36 @@ fn bounds_apply_to_temporal_types() {
     assert!(accepts("integer", "1", "10", "5"));
     assert!(!accepts("integer", "1", "10", "11"));
 }
+
+/// Decimals compare exactly, not through `f64`.
+///
+/// `xs:integer` is unbounded and `xs:decimal` has no precision limit,
+/// so an eighteen-digit bound compared through a float made two
+/// distinct values equal — and a value that must be *less than* its
+/// neighbour was reported as violating it.
+#[test]
+fn large_decimals_compare_without_losing_precision() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:integer">
+        <xs:maxExclusive value="999999999999999999"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    // Both are past 2^53, where an f64 cannot tell them apart.
+    assert!(accepts("999999999999999998"), "one less than the bound");
+    assert!(!accepts("999999999999999999"), "the bound is exclusive");
+    assert!(!accepts("1000000000000000000"), "past the bound");
+    // Sign, leading zeros and trailing fraction zeros do not change
+    // the value.
+    assert!(accepts("-999999999999999999"));
+    assert!(accepts("000000000000000001"));
+}

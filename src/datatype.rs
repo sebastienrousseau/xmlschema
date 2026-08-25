@@ -392,6 +392,24 @@ impl Datatype {
         )
     }
 
+    /// Compare two lexical values of this type.
+    ///
+    /// Numbers compare as decimals rather than through `f64`, which
+    /// loses precision past 2^53: `999999999999999998` and
+    /// `999999999999999999` are distinct `xs:integer` values and
+    /// compared equal as floats.
+    #[must_use]
+    pub fn compare(self, a: &str, b: &str) -> Option<core::cmp::Ordering> {
+        if self.is_numeric() {
+            return compare_decimal(
+                self.normalise(a).as_ref(),
+                self.normalise(b).as_ref(),
+            );
+        }
+        let (x, y) = (self.order_key(a)?, self.order_key(b)?);
+        x.partial_cmp(&y)
+    }
+
     /// A sortable key for an ordered value.
     ///
     /// Returns `None` when the value does not belong to the type, or
@@ -510,6 +528,62 @@ fn duration_seconds(v: &str) -> Option<f64> {
         }
     }
     Some(if negative { -total } else { total })
+}
+
+/// Compare two decimal lexical forms exactly.
+///
+/// Sign first, then magnitude: the integer parts by length once
+/// leading zeros are gone, then digit by digit, then the fractions
+/// padded to the same length. No floating point is involved, so an
+/// eighteen-digit integer compares as itself.
+fn compare_decimal(a: &str, b: &str) -> Option<core::cmp::Ordering> {
+    use core::cmp::Ordering;
+
+    // The specials only `float` and `double` admit.
+    for (v, order) in [(a, Ordering::Less), (b, Ordering::Greater)] {
+        if v == "NaN" {
+            return None;
+        }
+        let _ = order;
+    }
+    let sign_of = |v: &str| if v.starts_with('-') { -1 } else { 1 };
+    let (sa, sb) = (sign_of(a), sign_of(b));
+
+    let magnitude = |v: &str| {
+        let body = v.strip_prefix(['+', '-']).unwrap_or(v);
+        // Scientific notation is normalised through `f64`; it is only
+        // used by `float` and `double`, whose precision is the point.
+        if body.contains(['e', 'E']) || body == "INF" {
+            return None;
+        }
+        let (whole, frac) = body.split_once('.').unwrap_or((body, ""));
+        Some((
+            whole.trim_start_matches('0').to_owned(),
+            frac.trim_end_matches('0').to_owned(),
+        ))
+    };
+    let (Some((wa, fa)), Some((wb, fb))) = (magnitude(a), magnitude(b)) else {
+        return a.parse::<f64>().ok()?.partial_cmp(&b.parse::<f64>().ok()?);
+    };
+
+    // Zero has no sign for the purpose of ordering.
+    let a_zero = wa.is_empty() && fa.is_empty();
+    let b_zero = wb.is_empty() && fb.is_empty();
+    let sa = if a_zero { 0 } else { sa };
+    let sb = if b_zero { 0 } else { sb };
+    if sa != sb {
+        return Some(sa.cmp(&sb));
+    }
+
+    let mut order = wa.len().cmp(&wb.len()).then_with(|| wa.cmp(&wb));
+    if order == Ordering::Equal {
+        // Pad the fractions so `.5` and `.45` compare by position.
+        let width = fa.len().max(fb.len());
+        let pad = |f: &str| format!("{f:0<width$}");
+        order = pad(&fa).cmp(&pad(&fb));
+    }
+    // A negative magnitude ordering is the reverse of the value's.
+    Some(if sa < 0 { order.reverse() } else { order })
 }
 
 const fn is_xml_space(c: char) -> bool {
@@ -762,7 +836,13 @@ fn is_g_year_month(v: &str) -> bool {
 }
 
 fn is_g_month(v: &str) -> bool {
-    v.strip_prefix("--").is_some_and(|m| two_digit(m, 1, 12))
+    // XSD 1.0 as first published wrote this `--MM--`, and the errata
+    // shortened it to `--MM`. The suite uses both, and a value the
+    // specification once required is not one to refuse.
+    let body = v
+        .strip_prefix("--")
+        .map(|m| m.strip_suffix("--").unwrap_or(m));
+    body.is_some_and(|m| two_digit(m, 1, 12))
 }
 
 fn is_g_day(v: &str) -> bool {

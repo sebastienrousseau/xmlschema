@@ -731,32 +731,30 @@ fn check_facets(
     // lexical forms of the same type, so both convert through the
     // datatype and the units cancel.
     if base.is_ordered() {
-        let Some(n) = base.order_key(value) else {
-            return Ok(());
-        };
-        let bound = |raw: &Option<String>| {
+        use std::cmp::Ordering;
+        // Compared through the datatype, which orders decimals
+        // exactly rather than through an `f64` that cannot tell
+        // 999999999999999998 from 999999999999999999.
+        let against = |raw: &Option<String>| {
             raw.as_deref()
-                .and_then(|b| base.order_key(b).map(|k| (b.to_owned(), k)))
+                .and_then(|b| base.compare(value, b).map(|o| (b.to_owned(), o)))
         };
-        if let Some((text, b)) = bound(&facets.min_inclusive) {
-            if n < b {
-                return Err(format!("{value} must be at least {text}"));
-            }
+        if let Some((text, Ordering::Less)) = against(&facets.min_inclusive) {
+            return Err(format!("{value} must be at least {text}"));
         }
-        if let Some((text, b)) = bound(&facets.max_inclusive) {
-            if n > b {
-                return Err(format!("{value} must be at most {text}"));
-            }
+        if let Some((text, Ordering::Greater)) = against(&facets.max_inclusive)
+        {
+            return Err(format!("{value} must be at most {text}"));
         }
-        if let Some((text, b)) = bound(&facets.min_exclusive) {
-            if n <= b {
-                return Err(format!("{value} must be greater than {text}"));
-            }
+        if let Some((text, Ordering::Less | Ordering::Equal)) =
+            against(&facets.min_exclusive)
+        {
+            return Err(format!("{value} must be greater than {text}"));
         }
-        if let Some((text, b)) = bound(&facets.max_exclusive) {
-            if n >= b {
-                return Err(format!("{value} must be less than {text}"));
-            }
+        if let Some((text, Ordering::Greater | Ordering::Equal)) =
+            against(&facets.max_exclusive)
+        {
+            return Err(format!("{value} must be less than {text}"));
         }
     }
     Ok(())
