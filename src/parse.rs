@@ -170,9 +170,12 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     let root = schema_root(&doc)?;
     check_structure(&doc)?;
 
+    let tops = index_top_level(&doc, root);
+    check_derivation(&doc, &tops)?;
+
     let session = Session {
         doc: &doc,
-        tops: index_top_level(&doc, root),
+        tops,
         memo: RefCell::new(Memo::default()),
         budget: Cell::new(0),
     };
@@ -291,6 +294,11 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
 
         // Mutually exclusive children, by parent.
         let exclusive: &[&str] = match name {
+            // A derivation restates or appends *one* content model.
+            // Two is not a narrower model, it is two models.
+            "extension" | "restriction" => {
+                &["group", "all", "choice", "sequence"]
+            }
             "complexType" => &[
                 "simpleContent",
                 "complexContent",
@@ -330,6 +338,47 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
             ));
         }
 
+        // A complexType with simpleContent or complexContent carries
+        // everything inside it: attributes belong to the extension or
+        // restriction, not beside the wrapper.
+        if name == "complexType" {
+            let wrapped = children
+                .iter()
+                .any(|c| matches!(*c, "simpleContent" | "complexContent"));
+            if wrapped {
+                if let Some(stray) = children.iter().find(|c| {
+                    !matches!(
+                        **c,
+                        "simpleContent" | "complexContent" | "annotation"
+                    )
+                }) {
+                    return err(format!(
+                        "xs:{stray} may not sit beside xs:simpleContent or \
+                         xs:complexContent; it belongs inside the extension \
+                         or restriction"
+                    ));
+                }
+            }
+        }
+
+        // A facet constrains its base type's value space, so its own
+        // value has to be in it.
+        if name == "restriction" {
+            check_facet_values(doc, id)?;
+        }
+
+        // Two attributes of one name on a single type, however they
+        // are spelled.
+        if matches!(name, "complexType" | "attributeGroup" | "extension") {
+            check_attribute_names(doc, id)?;
+        }
+
+        // Element Declarations Consistent: two elements of the same
+        // name in one content model must have the same type.
+        if matches!(name, "sequence" | "choice" | "all" | "group") {
+            check_declarations_consistent(doc, id)?;
+        }
+
         // `ref` excludes `name`, and everything a declaration would
         // carry.
         if matches!(name, "element" | "attribute")
@@ -340,6 +389,241 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
         }
     }
     Ok(())
+}
+
+/// Derivation Valid (Restriction): a restriction must accept nothing
+/// its base would reject.
+///
+/// The relation itself lives in [`crate::derive`]; this resolves the
+/// base type and hands both content models to it.
+fn check_derivation(doc: &Document, tops: &Tops) -> Result<(), SchemaError> {
+    // A substitution group makes an element particle stand for every
+    // member of the group, so a restriction replacing `ref="head"`
+    // with a choice of its members is valid -- and looks like a name
+    // mismatch to a relation that does not model substitution. This
+    // crate does not, and `support::unsupported` says so, which makes
+    // declining to decide the honest answer rather than a wrong one.
+    if doc
+        .descendants()
+        .any(|id| doc.attribute(id, "substitutionGroup").is_some())
+    {
+        return Ok(());
+    }
+
+    let groups = |name: &str| tops.groups.get(name).copied();
+    // Whether one named complex type derives from another, by walking
+    // the `complexContent` base chain. Undecidable cases answer
+    // false, and the caller treats that as "accept" rather than
+    // "reject".
+    let type_derives = |derived: &str, base: &str| -> bool {
+        // Only a complex type has a chain to walk. Narrowing a
+        // simple type -- a union to one of its members, say -- is a
+        // valid derivation this crate cannot establish, so it is
+        // accepted rather than rejected.
+        if !tops.complex_types.contains_key(derived) {
+            return true;
+        }
+        let mut at = tops.complex_types.get(derived).copied();
+        for _ in 0..32 {
+            let Some(node) = at else { return false };
+            let Some(next) = ["complexContent", "simpleContent"]
+                .into_iter()
+                .find_map(|w| first_child_named(doc, node, w))
+                .and_then(|w| {
+                    ["extension", "restriction"]
+                        .into_iter()
+                        .find_map(|k| first_child_named(doc, w, k))
+                })
+                .and_then(|d| doc.attribute(d, "base"))
+            else {
+                return false;
+            };
+            let local = next.rsplit(':').next().unwrap_or(next);
+            if local == base {
+                return true;
+            }
+            at = tops.complex_types.get(local).copied();
+        }
+        false
+    };
+
+    for id in doc.descendants() {
+        if local_name(doc, id) != Some("restriction") {
+            continue;
+        }
+        // Only a complexContent restriction derives a content model.
+        if doc.parent(id).and_then(|p| local_name(doc, p))
+            != Some("complexContent")
+        {
+            continue;
+        }
+        let Some(base_name) = doc.attribute(id, "base") else {
+            continue;
+        };
+        let local = base_name.rsplit(':').next().unwrap_or(base_name);
+        let Some(&base_node) = tops.complex_types.get(local) else {
+            continue;
+        };
+
+        let model = |host: NodeId| {
+            doc.children(host)
+                .iter()
+                .copied()
+                .find_map(|c| crate::derive::particle_of(doc, c, &groups, 0))
+        };
+        // A base or derivation with no content model at all says
+        // nothing about the other.
+        let (Some(derived), Some(base)) = (model(id), model(base_node)) else {
+            continue;
+        };
+
+        if !crate::derive::is_valid_restriction(&derived, &base, &type_derives)
+        {
+            return err(format!(
+                "this content model is not a valid restriction of \
+                 `{base_name}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A facet's value must belong to the type it narrows.
+///
+/// `<xs:enumeration value="CA"/>` on a restriction of `xs:integer`
+/// names a value the base cannot hold, which makes the schema invalid
+/// rather than merely unsatisfiable.
+///
+/// Only a base naming a built-in is checked. A named local type would
+/// need the schema, which is not built yet at this point, and guessing
+/// would risk rejecting a valid schema.
+fn check_facet_values(doc: &Document, id: NodeId) -> Result<(), SchemaError> {
+    let Some(base) = doc.attribute(id, "base") else {
+        return Ok(());
+    };
+    let Some(datatype) = crate::datatype::Datatype::from_name(base) else {
+        return Ok(());
+    };
+    for &facet in doc.children(id) {
+        let (Some(kind), Some(value)) =
+            (local_name(doc, facet), doc.attribute(facet, "value"))
+        else {
+            continue;
+        };
+        let ok = match kind {
+            "enumeration" | "minInclusive" | "maxInclusive"
+            | "minExclusive" | "maxExclusive" => datatype.accepts(value),
+            // A count, whatever the base type is.
+            "length" | "minLength" | "maxLength" | "totalDigits"
+            | "fractionDigits" => value.parse::<usize>().is_ok(),
+            _ => true,
+        };
+        if !ok {
+            return err(format!(
+                "xs:{kind} value `{value}` is not a valid {base}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A type may not declare two attributes of the same name.
+///
+/// `ref="foo"` and `name="foo"` in one group are two declarations of
+/// `foo`, however differently they are spelled.
+fn check_attribute_names(
+    doc: &Document,
+    id: NodeId,
+) -> Result<(), SchemaError> {
+    let mut seen: Vec<&str> = Vec::new();
+    for &child in doc.children(id) {
+        if local_name(doc, child) != Some("attribute") {
+            continue;
+        }
+        let Some(name) = doc
+            .attribute(child, "name")
+            .or_else(|| doc.attribute(child, "ref"))
+        else {
+            continue;
+        };
+        // A reference carries a prefix; the declaration it names does
+        // not, and they are the same attribute.
+        let local = name.rsplit(':').next().unwrap_or(name);
+        if seen.contains(&local) {
+            return err(format!("`{local}` is declared twice on one type"));
+        }
+        seen.push(local);
+    }
+    Ok(())
+}
+
+/// Two element declarations of the same name in one content model
+/// must agree on their type.
+///
+/// XSD calls this *Element Declarations Consistent*. A model offering
+/// `e1` as a string in one branch and as a complex type in another has
+/// no single answer for what `e1` is, so the schema is invalid rather
+/// than ambiguous.
+///
+/// The walk descends through nested model groups, because they are the
+/// same content model, and stops at an element's own type, because
+/// that is a different one.
+fn check_declarations_consistent(
+    doc: &Document,
+    id: NodeId,
+) -> Result<(), SchemaError> {
+    let mut seen: Vec<(String, String)> = Vec::new();
+    collect_declarations(doc, id, &mut seen);
+    for (i, (name, signature)) in seen.iter().enumerate() {
+        if let Some((_, other)) = seen[..i]
+            .iter()
+            .find(|(n, other)| n == name && other != signature)
+        {
+            return err(format!(
+                "`{name}` is declared twice in one content model with \
+                 different types (`{other}` and `{signature}`)"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Element declarations directly within a content model, as
+/// `(name, type signature)`.
+fn collect_declarations(
+    doc: &Document,
+    id: NodeId,
+    out: &mut Vec<(String, String)>,
+) {
+    for &child in doc.children(id) {
+        match local_name(doc, child) {
+            Some("element") => {
+                // A `ref` names a top-level declaration, which is one
+                // declaration however often it is referenced.
+                if doc.attribute(child, "ref").is_some() {
+                    continue;
+                }
+                let Some(name) = doc.attribute(child, "name") else {
+                    continue;
+                };
+                // Only named types are compared. Two *inline* types
+                // are separate components and a literal reading makes
+                // them inconsistent, but the suite calls that shape
+                // valid -- and a rule that wrongly rejects a valid
+                // schema is worse than one that misses an invalid
+                // one, so this stays narrow.
+                let Some(signature) = doc.attribute(child, "type") else {
+                    continue;
+                };
+                out.push((name.to_owned(), signature.to_owned()));
+            }
+            // A nested group is the same content model.
+            Some("sequence" | "choice" | "all") => {
+                collect_declarations(doc, child, out);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn local_name(doc: &Document, id: NodeId) -> Option<&str> {
