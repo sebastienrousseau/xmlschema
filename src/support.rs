@@ -120,6 +120,32 @@ fn check_element(
     // A `sequence` or `choice` yields only its *element* children, so
     // a nested model group inside one is dropped along with every
     // constraint it carries.
+    // `<xs:sequence maxOccurs="2">` repeats the *group*: `(a, b){2}`
+    // permits `a b a b` and not `a a b b`. With one particle that is
+    // the same as multiplying its own cardinality, which the parser
+    // does; with more than one it is not, and this crate has no
+    // repeated-group model.
+    if matches!(name, "sequence" | "choice" | "all") {
+        let repeats = doc.attribute(id, "maxOccurs").is_some_and(|v| v != "1")
+            || doc.attribute(id, "minOccurs").is_some_and(|v| v != "1");
+        let particles = doc
+            .children(id)
+            .iter()
+            .filter(|&&c| {
+                doc.element_name(c).is_some_and(|n| n.local != "annotation")
+            })
+            .count();
+        if repeats && particles > 1 {
+            out.push(Unsupported {
+                construct: format!("repeated xs:{name}"),
+                effect: "a model group repeated as a whole is not \
+                         modelled, so the order across repetitions is \
+                         not enforced"
+                    .to_owned(),
+            });
+        }
+    }
+
     // A pattern this engine cannot compile constrains nothing. The
     // validator reports it as a violation, which turns an
     // unsupported *regex* into an invalid *document* -- the wrong

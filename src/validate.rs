@@ -296,16 +296,31 @@ impl Validator<'_> {
                 .element_name(child)
                 .map(|n| n.local.clone())
                 .unwrap_or_default();
-            if let Some(branch) = branches.iter().find(|b| b.name == child_name)
-            {
-                self.check_element(
+            // Matched through `particle_matches`, so a wildcard branch
+            // is considered. Comparing names alone never matched one:
+            // a wildcard particle has no name, which is also why the
+            // diagnostic used to list the permitted choices as `()`.
+            let branch = branches
+                .iter()
+                .position(|b| self.particle_matches(child, b, &child_name));
+            if let Some(index) = branch {
+                let particle = branches[index].clone();
+                self.check_matched(
                     child,
-                    branch,
+                    &particle,
                     &format!("{path}/{child_name}"),
                 );
             } else {
-                let allowed: Vec<&str> =
-                    branches.iter().map(|b| b.name.as_str()).collect();
+                let allowed: Vec<&str> = branches
+                    .iter()
+                    .map(|b| {
+                        if b.wildcard.is_some() {
+                            "any"
+                        } else {
+                            b.name.as_str()
+                        }
+                    })
+                    .collect();
                 self.violate(
                     &format!("{path}/{child_name}"),
                     format!(

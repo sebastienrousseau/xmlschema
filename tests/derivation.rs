@@ -340,3 +340,72 @@ fn a_schema_that_would_expand_without_bound_is_refused() {
         "the error should say what the limit was: {e}"
     );
 }
+
+/// `maxOccurs` on a model group repeats the group, not its content.
+#[test]
+fn a_model_group_carries_its_own_cardinality() {
+    let body = r#"
+      <xs:element name="r">
+        <xs:complexType>
+          <xs:sequence maxOccurs="unbounded">
+            <xs:element name="v" type="xs:integer"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>"#;
+    assert!(valid(body, "<r><v>1</v></r>"));
+    assert!(
+        valid(body, "<r><v>1</v><v>2</v><v>3</v></r>"),
+        "the group repeats"
+    );
+    assert!(!valid(body, "<r><v>x</v></r>"), "the type still applies");
+
+    // A bounded repeat multiplies through.
+    let twice = r#"
+      <xs:element name="r">
+        <xs:complexType>
+          <xs:sequence maxOccurs="2">
+            <xs:element name="v" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>"#;
+    assert!(valid(twice, "<r><v>a</v><v>b</v></r>"));
+    assert!(
+        !valid(twice, "<r><v>a</v><v>b</v><v>c</v></r>"),
+        "at most two"
+    );
+
+    // An optional group makes its single particle optional.
+    let optional = r#"
+      <xs:element name="r">
+        <xs:complexType>
+          <xs:sequence minOccurs="0">
+            <xs:element name="v" type="xs:string"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>"#;
+    assert!(valid(optional, "<r/>"));
+    assert!(valid(optional, "<r><v>a</v></r>"));
+}
+
+/// A repeated group of *more* than one particle is not modelled, and
+/// says so rather than guessing.
+#[test]
+fn a_repeated_multi_particle_group_is_reported_as_unenforceable() {
+    let xsd = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+             <xs:element name="r">
+               <xs:complexType>
+                 <xs:sequence maxOccurs="2">
+                   <xs:element name="a" type="xs:string"/>
+                   <xs:element name="b" type="xs:string"/>
+                 </xs:sequence>
+               </xs:complexType>
+             </xs:element>
+           </xs:schema>"#;
+    let doc = oxml::parse(xsd).expect("well-formed");
+    let gaps = xmlschema::support::unsupported(&doc);
+    assert!(
+        gaps.iter().any(|g| g.construct.contains("repeated")),
+        "`(a, b){{2}}` permits `a b a b` and not `a a b b`, which this \
+         crate does not model: {gaps:?}"
+    );
+}

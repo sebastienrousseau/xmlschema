@@ -97,8 +97,8 @@ fn main() -> Result<(), String> {
 
     // The shape of a message says what kind of thing went wrong; an
     // example says what actually did. Both are needed to fix one.
-    if let Some((top, _)) = ranked.first() {
-        println!("\nexamples of the most common, in full:");
+    for (top, _) in ranked.iter().take(3) {
+        println!("\nexamples of `{top}`:");
         let mut shown = 0;
         for r in &rejected {
             let Some(detail) = r.detail.as_deref() else {
@@ -117,7 +117,7 @@ fn main() -> Result<(), String> {
             }
             println!("  {}  {detail}", r.id);
             shown += 1;
-            if shown == 12 {
+            if shown == 4 {
                 break;
             }
         }

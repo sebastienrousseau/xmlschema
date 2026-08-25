@@ -596,9 +596,13 @@ fn model_group(doc: &Document, id: NodeId) -> Option<NodeId> {
 fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
     let doc = ctx.doc;
     match local_name(doc, id) {
-        Some("sequence") => Ok(Content::Sequence(parse_particles(ctx, id)?)),
-        Some("choice") => Ok(Content::Choice(parse_particles(ctx, id)?)),
-        Some("all") => Ok(Content::All(parse_particles(ctx, id)?)),
+        Some("sequence") => {
+            Ok(Content::Sequence(group_particles(ctx, id, "sequence")?))
+        }
+        Some("choice") => {
+            Ok(Content::Choice(group_particles(ctx, id, "choice")?))
+        }
+        Some("all") => Ok(Content::All(group_particles(ctx, id, "all")?)),
         Some("group") => {
             // A named group carries exactly one model group.
             let Some(reference) = doc.attribute(id, "ref") else {
@@ -668,6 +672,39 @@ fn parse_complex_content(
         // that lets everything through.
         (base, _) => base,
     })
+}
+
+/// A model group's particles, with the group's own cardinality
+/// applied.
+///
+/// `<xs:sequence maxOccurs="unbounded">` repeats the *group*, not the
+/// element inside it. With one particle that is exactly the same as
+/// multiplying its own cardinality, so it is done here. With more than
+/// one it is not -- `(a, b){2}` permits `a b a b` and not `a a b b` --
+/// and this crate has no repeated-group model, so the case is left to
+/// `support::unsupported` to report rather than guessed at.
+fn group_particles(
+    ctx: &Ctx,
+    id: NodeId,
+    kind: &str,
+) -> Result<Vec<Particle>, SchemaError> {
+    let mut particles = parse_particles(ctx, id)?;
+    let group = parse_occurs(ctx.doc, id);
+    if group == Occurs::default() {
+        return Ok(particles);
+    }
+    if let [only] = particles.as_mut_slice() {
+        only.occurs = Occurs {
+            min: only.occurs.min.saturating_mul(group.min),
+            max: match (only.occurs.max, group.max) {
+                (Some(a), Some(b)) => Some(a.saturating_mul(b)),
+                // Either being unbounded makes the product unbounded.
+                _ => None,
+            },
+        };
+    }
+    let _ = kind;
+    Ok(particles)
 }
 
 fn parse_particles(
