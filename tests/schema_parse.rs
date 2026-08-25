@@ -278,3 +278,74 @@ fn the_error_type_displays_its_message() {
     assert_eq!(e.to_string(), format!("{e}"));
     assert!(!format!("{e}").is_empty());
 }
+
+/// A schema is itself an XML document with a content model, and one
+/// that breaks it is invalid however sensible its declarations look.
+#[test]
+fn a_schema_breaking_xsds_own_structure_is_rejected() {
+    // Two annotations, where at most one is permitted.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+                 <xs:annotation><xs:documentation>b</xs:documentation></xs:annotation>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "at most one xs:annotation"
+    );
+
+    // An annotation that is not first.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:simpleContent><xs:extension base="xs:string"/></xs:simpleContent>
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "xs:annotation must come first"
+    );
+
+    // Mutually exclusive children.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:sequence/>
+                 <xs:choice/>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "a complexType has one content model, not two"
+    );
+
+    // Both a named type and an inline one.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="e" type="xs:string">
+                 <xs:simpleType><xs:restriction base="xs:string"/></xs:simpleType>
+               </xs:element>"#,
+        ))
+        .is_err(),
+        "a type attribute excludes an inline type"
+    );
+
+    // Both `name` and `ref`.
+    assert!(
+        parse_schema(&schema(r#"<xs:element name="e" ref="other"/>"#,))
+            .is_err(),
+        "name and ref are exclusive"
+    );
+
+    // And a well-formed schema still parses.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+                 <xs:sequence/>
+               </xs:complexType>"#,
+        ))
+        .is_ok(),
+        "one annotation, first, with one content model"
+    );
+}

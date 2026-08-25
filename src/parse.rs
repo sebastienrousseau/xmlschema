@@ -117,6 +117,8 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
         named_complex_types: BTreeMap::new(),
     };
 
+    check_structure(&doc)?;
+
     let memo = RefCell::new(Memo::default());
 
     // Every top-level declaration is indexed first, because a `ref` or
@@ -189,6 +191,98 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     // perfectly valid -- it exists to be imported. Refusing it
     // rejected 282 schemas the W3C suite calls valid.
     Ok(schema)
+}
+
+/// Check the schema document against XSD's own structural rules.
+///
+/// A schema is itself an XML document with a content model, and a
+/// schema that breaks it is invalid however sensible its declarations
+/// look. This crate reads what it recognises and ignored the rest,
+/// so it accepted schemas the specification rejects -- around 180 in
+/// the W3C suite before this.
+///
+/// Not the whole schema-for-schemas, which would be a second
+/// validator. These are the structural rules the suite tests most:
+/// where `annotation` may appear, and which children are mutually
+/// exclusive.
+fn check_structure(doc: &Document) -> Result<(), SchemaError> {
+    for id in doc.descendants() {
+        let Some(name) = local_name(doc, id) else {
+            continue;
+        };
+        let children: Vec<&str> = doc
+            .children(id)
+            .iter()
+            .filter_map(|&c| local_name(doc, c))
+            .collect();
+
+        // `annotation` is permitted once, and only first. Both halves
+        // matter: `ctB002` repeats it, `ctB004` puts it last.
+        let annotations =
+            children.iter().filter(|c| **c == "annotation").count();
+        if annotations > 1 {
+            return err(format!(
+                "xs:{name} has {annotations} xs:annotation children; \
+                 at most one is permitted"
+            ));
+        }
+        if annotations == 1 && children.first() != Some(&"annotation") {
+            return err(format!(
+                "xs:annotation must be the first child of xs:{name}"
+            ));
+        }
+
+        // Mutually exclusive children, by parent.
+        let exclusive: &[&str] = match name {
+            "complexType" => &[
+                "simpleContent",
+                "complexContent",
+                "group",
+                "all",
+                "choice",
+                "sequence",
+            ],
+            "simpleType" => &["restriction", "list", "union"],
+            "element" | "attribute" => &["simpleType", "complexType"],
+            _ => &[],
+        };
+        let present: Vec<&&str> =
+            children.iter().filter(|c| exclusive.contains(c)).collect();
+        if present.len() > 1 {
+            return err(format!(
+                "xs:{name} has both xs:{} and xs:{}; they are mutually \
+                 exclusive",
+                present[0], present[1]
+            ));
+        }
+
+        // A `simpleType` must say which variety it is.
+        if name == "simpleType" && present.is_empty() {
+            return err(
+                "xs:simpleType must contain a restriction, list or union",
+            );
+        }
+
+        // A declaration may name a type or contain one, not both.
+        if matches!(name, "element" | "attribute")
+            && doc.attribute(id, "type").is_some()
+            && !present.is_empty()
+        {
+            return err(format!(
+                "xs:{name} has both a `type` attribute and an inline type"
+            ));
+        }
+
+        // `ref` excludes `name`, and everything a declaration would
+        // carry.
+        if matches!(name, "element" | "attribute")
+            && doc.attribute(id, "ref").is_some()
+            && doc.attribute(id, "name").is_some()
+        {
+            return err(format!("xs:{name} has both `name` and `ref`"));
+        }
+    }
+    Ok(())
 }
 
 fn local_name(doc: &Document, id: NodeId) -> Option<&str> {
