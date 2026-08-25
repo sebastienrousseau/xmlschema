@@ -330,6 +330,35 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
             ));
         }
 
+        // A complexType with simpleContent or complexContent carries
+        // everything inside it: attributes belong to the extension or
+        // restriction, not beside the wrapper.
+        if name == "complexType" {
+            let wrapped = children
+                .iter()
+                .any(|c| matches!(*c, "simpleContent" | "complexContent"));
+            if wrapped {
+                if let Some(stray) = children.iter().find(|c| {
+                    !matches!(
+                        **c,
+                        "simpleContent" | "complexContent" | "annotation"
+                    )
+                }) {
+                    return err(format!(
+                        "xs:{stray} may not sit beside xs:simpleContent or \
+                         xs:complexContent; it belongs inside the extension \
+                         or restriction"
+                    ));
+                }
+            }
+        }
+
+        // Element Declarations Consistent: two elements of the same
+        // name in one content model must have the same type.
+        if matches!(name, "sequence" | "choice" | "all" | "group") {
+            check_declarations_consistent(doc, id)?;
+        }
+
         // `ref` excludes `name`, and everything a declaration would
         // carry.
         if matches!(name, "element" | "attribute")
@@ -340,6 +369,75 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
         }
     }
     Ok(())
+}
+
+/// Two element declarations of the same name in one content model
+/// must agree on their type.
+///
+/// XSD calls this *Element Declarations Consistent*. A model offering
+/// `e1` as a string in one branch and as a complex type in another has
+/// no single answer for what `e1` is, so the schema is invalid rather
+/// than ambiguous.
+///
+/// The walk descends through nested model groups, because they are the
+/// same content model, and stops at an element's own type, because
+/// that is a different one.
+fn check_declarations_consistent(
+    doc: &Document,
+    id: NodeId,
+) -> Result<(), SchemaError> {
+    let mut seen: Vec<(String, String)> = Vec::new();
+    collect_declarations(doc, id, &mut seen);
+    for (i, (name, signature)) in seen.iter().enumerate() {
+        if let Some((_, other)) = seen[..i]
+            .iter()
+            .find(|(n, other)| n == name && other != signature)
+        {
+            return err(format!(
+                "`{name}` is declared twice in one content model with \
+                 different types (`{other}` and `{signature}`)"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Element declarations directly within a content model, as
+/// `(name, type signature)`.
+fn collect_declarations(
+    doc: &Document,
+    id: NodeId,
+    out: &mut Vec<(String, String)>,
+) {
+    for &child in doc.children(id) {
+        match local_name(doc, child) {
+            Some("element") => {
+                // A `ref` names a top-level declaration, which is one
+                // declaration however often it is referenced.
+                if doc.attribute(child, "ref").is_some() {
+                    continue;
+                }
+                let Some(name) = doc.attribute(child, "name") else {
+                    continue;
+                };
+                // Only named types are compared. Two *inline* types
+                // are separate components and a literal reading makes
+                // them inconsistent, but the suite calls that shape
+                // valid -- and a rule that wrongly rejects a valid
+                // schema is worse than one that misses an invalid
+                // one, so this stays narrow.
+                let Some(signature) = doc.attribute(child, "type") else {
+                    continue;
+                };
+                out.push((name.to_owned(), signature.to_owned()));
+            }
+            // A nested group is the same content model.
+            Some("sequence" | "choice" | "all") => {
+                collect_declarations(doc, child, out);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn local_name(doc: &Document, id: NodeId) -> Option<&str> {
