@@ -427,3 +427,116 @@ fn a_document_that_is_not_a_schema_is_rejected() {
     // the public API.
     assert!(oxml::parse("<!-- nothing -->").is_err());
 }
+
+/// Two element declarations of the same name in one content model
+/// must agree on their type.
+///
+/// XSD calls this *Element Declarations Consistent*. A model offering
+/// `e1` as a string in one branch and as a complex type in another has
+/// no single answer for what `e1` is.
+#[test]
+fn element_declarations_in_one_model_must_agree() {
+    let clash = parse_schema(&schema(
+        r#"<xs:complexType name="bar">
+             <xs:sequence><xs:element name="x" type="xs:string"/></xs:sequence>
+           </xs:complexType>
+           <xs:element name="doc">
+             <xs:complexType><xs:all>
+               <xs:element name="e1" type="xs:string"/>
+               <xs:element name="e1" type="bar"/>
+             </xs:all></xs:complexType>
+           </xs:element>"#,
+    ));
+    assert!(clash.is_err(), "two types for one name");
+
+    // The same type twice is consistent, however often it appears.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="doc">
+                 <xs:complexType><xs:choice>
+                   <xs:element name="e1" type="xs:string"/>
+                   <xs:element name="e1" type="xs:string"/>
+                 </xs:choice></xs:complexType>
+               </xs:element>"#,
+        ))
+        .is_ok(),
+        "one type, named twice"
+    );
+
+    // The check reaches through nested model groups, because they are
+    // the same content model.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="doc">
+                 <xs:complexType><xs:sequence>
+                   <xs:element name="e1" type="xs:string"/>
+                   <xs:choice>
+                     <xs:element name="e1" type="xs:integer"/>
+                   </xs:choice>
+                 </xs:sequence></xs:complexType>
+               </xs:element>"#,
+        ))
+        .is_err(),
+        "a nested group is the same model"
+    );
+
+    // It stops at an element's own type, because that is a different
+    // content model.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="doc">
+                 <xs:complexType><xs:sequence>
+                   <xs:element name="e1" type="xs:string"/>
+                   <xs:element name="wrapper">
+                     <xs:complexType><xs:sequence>
+                       <xs:element name="e1" type="xs:integer"/>
+                     </xs:sequence></xs:complexType>
+                   </xs:element>
+                 </xs:sequence></xs:complexType>
+               </xs:element>"#,
+        ))
+        .is_ok(),
+        "a nested type is a different model"
+    );
+}
+
+/// A complexType with simpleContent or complexContent carries
+/// everything inside it.
+#[test]
+fn attributes_may_not_sit_beside_simple_content() {
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:simpleContent><xs:extension base="xs:string"/></xs:simpleContent>
+                 <xs:attribute name="a"/>
+               </xs:complexType>"#,
+        ))
+        .is_err(),
+        "the attribute belongs inside the extension"
+    );
+
+    // Inside, it is fine.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:simpleContent>
+                   <xs:extension base="xs:string">
+                     <xs:attribute name="a"/>
+                   </xs:extension>
+                 </xs:simpleContent>
+               </xs:complexType>"#,
+        ))
+        .is_ok()
+    );
+
+    // And an annotation may still sit beside it.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:annotation><xs:documentation>a</xs:documentation></xs:annotation>
+                 <xs:simpleContent><xs:extension base="xs:string"/></xs:simpleContent>
+               </xs:complexType>"#,
+        ))
+        .is_ok()
+    );
+}

@@ -97,7 +97,7 @@ fn main() -> Result<(), String> {
 
     // The shape of a message says what kind of thing went wrong; an
     // example says what actually did. Both are needed to fix one.
-    for (top, _) in ranked.iter().take(3) {
+    for (top, _) in ranked.iter().take(8) {
         println!("\nexamples of `{top}`:");
         let mut shown = 0;
         for r in &rejected {
@@ -143,7 +143,16 @@ fn main() -> Result<(), String> {
     ranked.sort_by(|a, b| b.1.cmp(&a.1));
     println!("\nwrongly accepted, by test family:");
     for (family, n) in ranked.iter().take(20) {
-        println!("  {n:>6}  {family}");
+        // Name a few, because a family tells you what area is wrong
+        // and an id tells you which schema to read.
+        let head = family.split("  [").next().unwrap_or(family);
+        let examples: Vec<&str> = accepted
+            .iter()
+            .filter(|r| r.id.starts_with(head))
+            .map(|r| r.id.as_str())
+            .take(3)
+            .collect();
+        println!("  {n:>6}  {family}   e.g. {}", examples.join(", "));
     }
 
     let mut reasons: BTreeMap<&str, usize> = BTreeMap::new();
