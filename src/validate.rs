@@ -10,7 +10,6 @@ use crate::model::{
     BuiltIn, Content, Facets, NamespaceConstraint, Particle, ProcessContents,
     Schema, SimpleType, Variety,
 };
-use crate::pattern::Pattern;
 
 /// One validation failure.
 ///
@@ -599,19 +598,12 @@ fn check_list(
     // lexical form, not to each item. It was not applied at all,
     // which left every `list-<type>-pattern` schema in the suite --
     // some five hundred tests -- accepting anything.
-    if let Some(pattern) = facets.pattern.as_deref() {
-        match Pattern::compile(pattern) {
-            Ok(compiled) => {
-                if !compiled.matches(value) {
-                    return Err(format!(
-                        "`{value}` does not match the pattern `{pattern}`"
-                    ));
-                }
-            }
-            // An uncompilable pattern constrains nothing; it is
-            // reported by `support::unsupported`, not blamed on the
-            // document.
-            Err(_) => return Ok(()),
+    if let Some(pattern) = facets.pattern.as_ref() {
+        if !pattern.matches(value) {
+            return Err(format!(
+                "`{value}` does not match the pattern `{}`",
+                pattern.source()
+            ));
         }
     }
 
@@ -690,6 +682,12 @@ fn check_builtin(value: &str, base: BuiltIn) -> Result<(), String> {
     }
 }
 
+/// Check a value against the facets narrowing its type.
+///
+/// Split into one function per family. They are independent -- an
+/// enumeration says nothing about a length, and a digit count says
+/// nothing about a bound -- and reading them together meant reading a
+/// hundred lines to find the ten that applied.
 fn check_facets(
     value: &str,
     facets: &Facets,
@@ -698,16 +696,31 @@ fn check_facets(
     if facets.is_empty() {
         return Ok(());
     }
+    check_enumeration(value, facets)?;
+    check_length(value, facets)?;
+    check_pattern(value, facets)?;
+    check_digits(value, facets)?;
+    check_bounds(value, facets, base)
+}
 
-    if !facets.enumeration.is_empty()
-        && !facets.enumeration.iter().any(|e| e == value)
+/// `xs:enumeration` — the value must be one of a fixed set.
+fn check_enumeration(value: &str, facets: &Facets) -> Result<(), String> {
+    if facets.enumeration.is_empty()
+        || facets.enumeration.iter().any(|e| e == value)
     {
-        return Err(format!(
-            "`{value}` is not one of the permitted values ({})",
-            facets.enumeration.join(", ")
-        ));
+        return Ok(());
     }
+    Err(format!(
+        "`{value}` is not one of the permitted values ({})",
+        facets.enumeration.join(", ")
+    ))
+}
 
+/// `xs:length` and its bounds, counted in characters.
+///
+/// Characters rather than bytes, so a multi-byte value is not
+/// measured as longer than it is.
+fn check_length(value: &str, facets: &Facets) -> Result<(), String> {
     let len = value.chars().count();
     if let Some(want) = facets.length {
         if len != want {
@@ -730,76 +743,85 @@ fn check_facets(
             ));
         }
     }
+    Ok(())
+}
 
-    if let Some(source) = &facets.pattern {
-        match Pattern::compile(source) {
-            Ok(p) => {
-                if !p.matches(value) {
-                    return Err(format!(
-                        "`{value}` does not match the pattern `{source}`"
-                    ));
-                }
-            }
-            Err(e) => {
-                return Err(format!(
-                    "the schema's pattern `{source}` could not be \
-                     compiled: {e}"
-                ));
-            }
+/// `xs:pattern`, compiled when the schema was read.
+fn check_pattern(value: &str, facets: &Facets) -> Result<(), String> {
+    let Some(pattern) = facets.pattern.as_ref() else {
+        return Ok(());
+    };
+    if pattern.matches(value) {
+        return Ok(());
+    }
+    Err(format!(
+        "`{value}` does not match the pattern `{}`",
+        pattern.source()
+    ))
+}
+
+/// `xs:totalDigits` and `xs:fractionDigits`.
+///
+/// Both count *significant* digits, which is a property of the value:
+/// a sign, leading zeros and a trailing zero fraction do not count, so
+/// `01.20` is two and one rather than four and two.
+fn check_digits(value: &str, facets: &Facets) -> Result<(), String> {
+    if facets.total_digits.is_none() && facets.fraction_digits.is_none() {
+        return Ok(());
+    }
+    let (total, fraction) = digit_counts(value);
+    if let Some(max) = facets.total_digits {
+        if total > max {
+            return Err(format!(
+                "{value} has {total} significant digits, more than {max}"
+            ));
         }
     }
-
-    // Digit counts are defined on the *value*, so a sign, leading
-    // zeros and a trailing zero fraction do not count. `01.20` has two
-    // total digits and one fraction digit, not four and two.
-    if facets.total_digits.is_some() || facets.fraction_digits.is_some() {
-        let (total, fraction) = digit_counts(value);
-        if let Some(max) = facets.total_digits {
-            if total > max {
-                return Err(format!(
-                    "{value} has {total} significant digits, more than {max}"
-                ));
-            }
-        }
-        if let Some(max) = facets.fraction_digits {
-            if fraction > max {
-                return Err(format!(
-                    "{value} has {fraction} fraction digits, more than {max}"
-                ));
-            }
+    if let Some(max) = facets.fraction_digits {
+        if fraction > max {
+            return Err(format!(
+                "{value} has {fraction} fraction digits, more than {max}"
+            ));
         }
     }
+    Ok(())
+}
 
-    // Bounds apply to every *ordered* type, which includes the dates,
-    // times and durations as well as the numbers. Both sides are
-    // lexical forms of the same type, so both convert through the
-    // datatype and the units cancel.
-    if base.is_ordered() {
-        use std::cmp::Ordering;
-        // Compared through the datatype, which orders decimals
-        // exactly rather than through an `f64` that cannot tell
-        // 999999999999999998 from 999999999999999999.
-        let against = |raw: &Option<String>| {
-            raw.as_deref()
-                .and_then(|b| base.compare(value, b).map(|o| (b.to_owned(), o)))
-        };
-        if let Some((text, Ordering::Less)) = against(&facets.min_inclusive) {
-            return Err(format!("{value} must be at least {text}"));
-        }
-        if let Some((text, Ordering::Greater)) = against(&facets.max_inclusive)
-        {
-            return Err(format!("{value} must be at most {text}"));
-        }
-        if let Some((text, Ordering::Less | Ordering::Equal)) =
-            against(&facets.min_exclusive)
-        {
-            return Err(format!("{value} must be greater than {text}"));
-        }
-        if let Some((text, Ordering::Greater | Ordering::Equal)) =
-            against(&facets.max_exclusive)
-        {
-            return Err(format!("{value} must be less than {text}"));
-        }
+/// The four ordering bounds.
+///
+/// They apply to every *ordered* type, which includes the dates, times
+/// and durations as well as the numbers. Both sides are lexical forms
+/// of the same type, so both convert through the datatype and the
+/// units cancel.
+fn check_bounds(
+    value: &str,
+    facets: &Facets,
+    base: BuiltIn,
+) -> Result<(), String> {
+    use std::cmp::Ordering;
+
+    if !base.is_ordered() {
+        return Ok(());
+    }
+    let against = |raw: &Option<String>| {
+        raw.as_deref()
+            .and_then(|b| base.compare(value, b).map(|o| (b.to_owned(), o)))
+    };
+    if let Some((text, Ordering::Less)) = against(&facets.min_inclusive) {
+        return Err(format!("{value} must be at least {text}"));
+    }
+    if let Some((text, Ordering::Greater)) = against(&facets.max_inclusive) {
+        return Err(format!("{value} must be at most {text}"));
+    }
+    if let Some((text, Ordering::Less | Ordering::Equal)) =
+        against(&facets.min_exclusive)
+    {
+        return Err(format!("{value} must be greater than {text}"));
+    }
+    if let Some((text, Ordering::Greater | Ordering::Equal)) =
+        against(&facets.max_exclusive)
+    {
+        return Err(format!("{value} must be less than {text}"));
     }
     Ok(())
 }

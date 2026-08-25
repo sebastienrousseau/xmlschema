@@ -126,7 +126,7 @@ fn category_matches(name: &str, c: char) -> Option<bool> {
 }
 
 /// A compiled `xs:pattern`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Pattern {
     root: Node,
     source: String,

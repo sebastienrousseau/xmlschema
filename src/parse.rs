@@ -56,6 +56,32 @@ struct Memo {
     attributes: BTreeMap<usize, Vec<AttributeDecl>>,
 }
 
+/// The state one `parse_schema` call shares across its three passes.
+///
+/// Held together so a [`Ctx`] can be handed out without repeating six
+/// fields at every call, and so the memo and the budget are plainly
+/// per-parse rather than global.
+struct Session<'a> {
+    doc: &'a Document,
+    tops: Tops,
+    memo: RefCell<Memo>,
+    budget: Cell<usize>,
+}
+
+impl Session<'_> {
+    /// A context for parsing against the schema built so far.
+    fn ctx<'s>(&'s self, schema: &'s Schema) -> Ctx<'s> {
+        Ctx {
+            doc: self.doc,
+            schema,
+            tops: &self.tops,
+            memo: &self.memo,
+            budget: &self.budget,
+            depth: 0,
+        }
+    }
+}
+
 /// What a nested parse needs: the document, what has been built so
 /// far, the memo, and how deep the reference chain is.
 struct Ctx<'a> {
@@ -141,12 +167,15 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     let doc = oxml::parse(xsd).map_err(|e| SchemaError {
         message: format!("the schema is not well-formed XML: {e}"),
     })?;
-    let Some(root) = doc.root_element() else {
-        return err("the schema has no root element");
+    let root = schema_root(&doc)?;
+    check_structure(&doc)?;
+
+    let session = Session {
+        doc: &doc,
+        tops: index_top_level(&doc, root),
+        memo: RefCell::new(Memo::default()),
+        budget: Cell::new(0),
     };
-    if local_name(&doc, root) != Some("schema") {
-        return err("the root element must be xs:schema");
-    }
 
     let mut schema = Schema {
         target_namespace: doc
@@ -157,17 +186,54 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
         named_complex_types: BTreeMap::new(),
     };
 
-    check_structure(&doc)?;
+    // Three passes, because a declaration may reference a type
+    // declared after it and resolving forward references on demand
+    // would re-walk the tree for each one.
+    for &child in doc.children(root) {
+        if local_name(&doc, child) == Some("simpleType") {
+            if let Some(name) = doc.attribute(child, "name") {
+                let st = parse_simple_type(&session.ctx(&schema), child);
+                let _ = schema.named_simple_types.insert(name.to_owned(), st);
+            }
+        }
+    }
 
-    let memo = RefCell::new(Memo::default());
-    let budget = Cell::new(0usize);
+    for (name, &node) in &session.tops.complex_types {
+        let content = parse_complex_type(&session.ctx(&schema), node)?;
+        let _ = schema.named_complex_types.insert(name.clone(), content);
+    }
 
-    // Every top-level declaration is indexed first, because a `ref` or
-    // a group reference may point forward.
+    for &child in doc.children(root) {
+        if local_name(&doc, child) == Some("element") {
+            let particle = parse_element(&session.ctx(&schema), child)?;
+            let _ = schema.elements.insert(particle.name.clone(), particle);
+        }
+    }
+
+    Ok(schema)
+}
+
+/// The `xs:schema` element, or why the document is not a schema.
+fn schema_root(doc: &Document) -> Result<NodeId, SchemaError> {
+    let Some(root) = doc.root_element() else {
+        return err("the schema has no root element");
+    };
+    if local_name(doc, root) != Some("schema") {
+        return err("the root element must be xs:schema");
+    }
+    Ok(root)
+}
+
+/// Index every top-level declaration by name.
+///
+/// Done before anything is resolved because a reference may point
+/// forward, and re-walking the tree for each one is quadratic on a
+/// large schema.
+fn index_top_level(doc: &Document, root: NodeId) -> Tops {
     let mut tops = Tops::default();
     for &child in doc.children(root) {
         let (Some(kind), Some(name)) =
-            (local_name(&doc, child), doc.attribute(child, "name"))
+            (local_name(doc, child), doc.attribute(child, "name"))
         else {
             continue;
         };
@@ -181,60 +247,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
         };
         let _ = table.insert(name.to_owned(), child);
     }
-
-    // Named simple types next: an element declaration may reference
-    // one by name, and resolving forward references afterwards would
-    // need a second pass over the whole tree.
-    for &child in doc.children(root) {
-        if local_name(&doc, child) == Some("simpleType") {
-            if let Some(name) = doc.attribute(child, "name") {
-                let ctx = Ctx {
-                    doc: &doc,
-                    schema: &schema,
-                    tops: &tops,
-                    memo: &memo,
-                    depth: 0,
-                    budget: &budget,
-                };
-                let st = parse_simple_type(&ctx, child);
-                let _ = schema.named_simple_types.insert(name.to_owned(), st);
-            }
-        }
-    }
-
-    // Then named complex types, so a `type` attribute can name one.
-    for (name, &node) in &tops.complex_types {
-        let ctx = Ctx {
-            doc: &doc,
-            schema: &schema,
-            tops: &tops,
-            memo: &memo,
-            depth: 0,
-            budget: &budget,
-        };
-        let content = parse_complex_type(&ctx, node)?;
-        let _ = schema.named_complex_types.insert(name.clone(), content);
-    }
-
-    for &child in doc.children(root) {
-        if local_name(&doc, child) == Some("element") {
-            let ctx = Ctx {
-                doc: &doc,
-                schema: &schema,
-                tops: &tops,
-                memo: &memo,
-                depth: 0,
-                budget: &budget,
-            };
-            let particle = parse_element(&ctx, child)?;
-            let _ = schema.elements.insert(particle.name.clone(), particle);
-        }
-    }
-
-    // A schema declaring only types, groups or attributes is
-    // perfectly valid -- it exists to be imported. Refusing it
-    // rejected 282 schemas the W3C suite calls valid.
-    Ok(schema)
+    tops
 }
 
 /// Check the schema document against XSD's own structural rules.
@@ -937,7 +950,13 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         };
         match kind {
             "enumeration" => facets.enumeration.push(value.to_owned()),
-            "pattern" => facets.pattern = Some(value.to_owned()),
+            // A pattern that does not compile constrains nothing.
+            // Dropping it here rather than failing keeps an
+            // unsupported *regex* from being reported as an invalid
+            // *document*; `support::unsupported` reports the schema.
+            "pattern" => {
+                facets.pattern = crate::pattern::Pattern::compile(value).ok();
+            }
             "minLength" => facets.min_length = value.parse().ok(),
             "maxLength" => facets.max_length = value.parse().ok(),
             "length" => facets.length = value.parse().ok(),
