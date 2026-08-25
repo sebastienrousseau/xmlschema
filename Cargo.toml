@@ -1,3 +1,6 @@
+[workspace]
+members = ["conformance"]
+
 [package]
 name = "xmlschema"
 version = "0.0.5"

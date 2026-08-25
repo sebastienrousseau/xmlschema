@@ -97,6 +97,7 @@
 pub mod model;
 pub mod parse;
 pub mod pattern;
+pub mod support;
 pub mod validate;
 
 pub use model::{
