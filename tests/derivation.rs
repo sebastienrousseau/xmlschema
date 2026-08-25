@@ -409,3 +409,79 @@ fn a_repeated_multi_particle_group_is_reported_as_unenforceable() {
          crate does not model: {gaps:?}"
     );
 }
+
+/// A derivation restates or appends *one* content model.
+#[test]
+fn a_derivation_may_hold_one_model_group() {
+    let two = parse_schema(&schema(
+        r#"<xs:group name="g"><xs:sequence>
+             <xs:element name="a" type="xs:string"/>
+           </xs:sequence></xs:group>
+           <xs:complexType name="base">
+             <xs:sequence><xs:any/></xs:sequence>
+           </xs:complexType>
+           <xs:complexType name="derived">
+             <xs:complexContent>
+               <xs:restriction base="base">
+                 <xs:group ref="g"/>
+                 <xs:all/>
+               </xs:restriction>
+             </xs:complexContent>
+           </xs:complexType>"#,
+    ));
+    assert!(two.is_err(), "two models is not a narrower model");
+
+    // One is fine.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="base">
+                 <xs:sequence><xs:any/></xs:sequence>
+               </xs:complexType>
+               <xs:complexType name="derived">
+                 <xs:complexContent>
+                   <xs:restriction base="base">
+                     <xs:sequence><xs:any/></xs:sequence>
+                   </xs:restriction>
+                 </xs:complexContent>
+               </xs:complexType>"#,
+        ))
+        .is_ok()
+    );
+}
+
+/// A restricted wildcard may not admit a namespace the base excludes.
+///
+/// It may, however, validate less strictly: the first edition required
+/// `processContents` to be at least as strong and the second-edition
+/// errata removed that clause. Enforcing the original rule rejected
+/// seven schemas the suite calls valid.
+#[test]
+fn a_restricted_wildcard_may_not_widen_its_namespaces() {
+    let with = |base_ns: &str, derived: &str| {
+        parse_schema(&schema(&format!(
+            r#"<xs:complexType name="base">
+                 <xs:sequence><xs:any namespace="{base_ns}"/></xs:sequence>
+               </xs:complexType>
+               <xs:complexType name="derived">
+                 <xs:complexContent>
+                   <xs:restriction base="base">
+                     <xs:sequence><xs:any {derived}/></xs:sequence>
+                   </xs:restriction>
+                 </xs:complexContent>
+               </xs:complexType>"#
+        )))
+    };
+
+    // Narrowing a list is a restriction.
+    assert!(with("urn:a urn:b", r#"namespace="urn:a""#).is_ok());
+    // Widening past it is not.
+    assert!(with("urn:a", r#"namespace="urn:a urn:b""#).is_err());
+    assert!(with("urn:a", "namespace='##any'").is_err());
+    // Anything is within `##any`.
+    assert!(with("##any", r#"namespace="urn:a""#).is_ok());
+
+    // `processContents` may be weakened — the errata removed that
+    // constraint, and the suite depends on it.
+    assert!(with("##any", r#"processContents="lax""#).is_ok());
+    assert!(with("##any", r#"processContents="skip""#).is_ok());
+}
