@@ -570,3 +570,44 @@ fn an_enumeration_on_a_list_matches_the_whole_value() {
     assert!(!valid("1 3"), "not one of the permitted lists");
     assert!(!valid("1"), "nor is a prefix of one");
 }
+
+/// A choice branch may be a wildcard.
+///
+/// Branches were matched by name, and a wildcard particle has none —
+/// so a choice of one `xs:any` matched nothing at all, and reported
+/// the permitted choices as `()`.
+#[test]
+fn a_choice_branch_may_be_a_wildcard() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:group name="g">
+    <xs:choice><xs:any processContents="lax"/></xs:choice>
+  </xs:group>
+  <xs:element name="r"><xs:complexType><xs:group ref="g"/></xs:complexType></xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let doc = oxml::parse("<r><anything/></r>").expect("well-formed");
+    assert!(validate(&doc, &schema).is_valid());
+
+    // A named branch alongside a wildcard still matches by name.
+    let mixed = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="r">
+    <xs:complexType><xs:choice>
+      <xs:element name="known" type="xs:integer"/>
+      <xs:any processContents="skip"/>
+    </xs:choice></xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(mixed).expect("schema parses");
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(valid("<r><known>1</known></r>"));
+    assert!(
+        !valid("<r><known>x</known></r>"),
+        "the named branch is typed"
+    );
+    assert!(valid("<r><other/></r>"), "the wildcard takes the rest");
+}

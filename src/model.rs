@@ -71,9 +71,19 @@ pub use crate::datatype::Datatype as BuiltIn;
 pub struct Facets {
     /// `xs:enumeration` — the value must be one of these.
     pub enumeration: Vec<String>,
-    /// `xs:pattern`, as written. See [`crate::pattern`] for the
-    /// supported subset.
-    pub pattern: Option<String>,
+    /// `xs:pattern`, compiled.
+    ///
+    /// Compiled once when the schema is read rather than once per
+    /// value: a document with a thousand values was paying for a
+    /// thousand compilations, which cost more than the matching did.
+    /// [`crate::pattern::Pattern::source`] gives the text back for a
+    /// diagnostic.
+    ///
+    /// `None` when the schema declared no pattern *or* when the one it
+    /// declared does not compile. The two are not distinguished here
+    /// because neither constrains anything;
+    /// [`crate::support::unsupported`] reports the second.
+    pub pattern: Option<crate::pattern::Pattern>,
     /// `xs:minLength`
     pub min_length: Option<usize>,
     /// `xs:maxLength`
