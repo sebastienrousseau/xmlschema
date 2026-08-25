@@ -540,3 +540,71 @@ fn attributes_may_not_sit_beside_simple_content() {
         .is_ok()
     );
 }
+
+/// A facet's value must belong to the type it narrows.
+#[test]
+fn a_facet_value_must_be_valid_for_its_base() {
+    let with = |base: &str, facet: &str, value: &str| {
+        parse_schema(&schema(&format!(
+            r#"<xs:simpleType name="t">
+                 <xs:restriction base="{base}">
+                   <xs:{facet} value="{value}"/>
+                 </xs:restriction>
+               </xs:simpleType>"#
+        )))
+    };
+    // `CA` is not an integer, so it cannot be one of an integer's
+    // permitted values.
+    assert!(with("xs:integer", "enumeration", "CA").is_err());
+    assert!(with("xs:integer", "enumeration", "10").is_ok());
+    // Bounds too.
+    assert!(with("xs:integer", "minInclusive", "x").is_err());
+    assert!(with("xs:date", "maxInclusive", "not-a-date").is_err());
+    assert!(with("xs:date", "maxInclusive", "2001-01-01").is_ok());
+    // A count is a count whatever the base is.
+    assert!(with("xs:string", "maxLength", "-1").is_err());
+    assert!(with("xs:string", "maxLength", "four").is_err());
+    assert!(with("xs:string", "maxLength", "4").is_ok());
+    // A pattern is not a value of the base type, so it is not checked
+    // against it.
+    assert!(with("xs:integer", "pattern", "[0-9]+").is_ok());
+}
+
+/// A type may not declare two attributes of the same name.
+#[test]
+fn two_attributes_of_one_name_are_rejected() {
+    // Declared twice outright.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:attribute name="a" type="xs:string"/>
+                 <xs:attribute name="a" type="xs:integer"/>
+               </xs:complexType>"#,
+        ))
+        .is_err()
+    );
+
+    // Declared once and referenced once is still twice: `ref="foo"`
+    // and `name="foo"` name the same attribute.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:attribute name="foo" type="xs:string"/>
+               <xs:attributeGroup name="g">
+                 <xs:attribute name="foo" type="xs:int"/>
+                 <xs:attribute ref="foo"/>
+               </xs:attributeGroup>"#,
+        ))
+        .is_err()
+    );
+
+    // Two different names are fine.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:attribute name="a" type="xs:string"/>
+                 <xs:attribute name="b" type="xs:string"/>
+               </xs:complexType>"#,
+        ))
+        .is_ok()
+    );
+}

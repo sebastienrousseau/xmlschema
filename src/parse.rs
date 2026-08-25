@@ -353,6 +353,18 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
             }
         }
 
+        // A facet constrains its base type's value space, so its own
+        // value has to be in it.
+        if name == "restriction" {
+            check_facet_values(doc, id)?;
+        }
+
+        // Two attributes of one name on a single type, however they
+        // are spelled.
+        if matches!(name, "complexType" | "attributeGroup" | "extension") {
+            check_attribute_names(doc, id)?;
+        }
+
         // Element Declarations Consistent: two elements of the same
         // name in one content model must have the same type.
         if matches!(name, "sequence" | "choice" | "all" | "group") {
@@ -367,6 +379,75 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
         {
             return err(format!("xs:{name} has both `name` and `ref`"));
         }
+    }
+    Ok(())
+}
+
+/// A facet's value must belong to the type it narrows.
+///
+/// `<xs:enumeration value="CA"/>` on a restriction of `xs:integer`
+/// names a value the base cannot hold, which makes the schema invalid
+/// rather than merely unsatisfiable.
+///
+/// Only a base naming a built-in is checked. A named local type would
+/// need the schema, which is not built yet at this point, and guessing
+/// would risk rejecting a valid schema.
+fn check_facet_values(doc: &Document, id: NodeId) -> Result<(), SchemaError> {
+    let Some(base) = doc.attribute(id, "base") else {
+        return Ok(());
+    };
+    let Some(datatype) = crate::datatype::Datatype::from_name(base) else {
+        return Ok(());
+    };
+    for &facet in doc.children(id) {
+        let (Some(kind), Some(value)) =
+            (local_name(doc, facet), doc.attribute(facet, "value"))
+        else {
+            continue;
+        };
+        let ok = match kind {
+            "enumeration" | "minInclusive" | "maxInclusive"
+            | "minExclusive" | "maxExclusive" => datatype.accepts(value),
+            // A count, whatever the base type is.
+            "length" | "minLength" | "maxLength" | "totalDigits"
+            | "fractionDigits" => value.parse::<usize>().is_ok(),
+            _ => true,
+        };
+        if !ok {
+            return err(format!(
+                "xs:{kind} value `{value}` is not a valid {base}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A type may not declare two attributes of the same name.
+///
+/// `ref="foo"` and `name="foo"` in one group are two declarations of
+/// `foo`, however differently they are spelled.
+fn check_attribute_names(
+    doc: &Document,
+    id: NodeId,
+) -> Result<(), SchemaError> {
+    let mut seen: Vec<&str> = Vec::new();
+    for &child in doc.children(id) {
+        if local_name(doc, child) != Some("attribute") {
+            continue;
+        }
+        let Some(name) = doc
+            .attribute(child, "name")
+            .or_else(|| doc.attribute(child, "ref"))
+        else {
+            continue;
+        };
+        // A reference carries a prefix; the declaration it names does
+        // not, and they are the same attribute.
+        let local = name.rsplit(':').next().unwrap_or(name);
+        if seen.contains(&local) {
+            return err(format!("`{local}` is declared twice on one type"));
+        }
+        seen.push(local);
     }
     Ok(())
 }
