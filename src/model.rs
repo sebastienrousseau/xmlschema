@@ -98,13 +98,48 @@ impl Facets {
     }
 }
 
-/// A simple type: a built-in, optionally restricted.
+/// A simple type: a built-in, optionally restricted, listed or united.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleType {
     /// The base built-in the value must first satisfy.
+    ///
+    /// Meaningful only for [`Variety::Atomic`]; a list or union
+    /// carries its constraint in [`SimpleType::variety`] instead.
     pub base: BuiltIn,
     /// Additional constraints.
     pub facets: Facets,
+    /// Whether the value is a single value, a whitespace-separated
+    /// list of them, or one of several alternatives.
+    pub variety: Variety,
+}
+
+impl SimpleType {
+    /// An atomic type with no facets.
+    #[must_use]
+    pub fn atomic(base: BuiltIn) -> Self {
+        Self {
+            base,
+            facets: Facets::default(),
+            variety: Variety::Atomic,
+        }
+    }
+}
+
+/// Which of XSD's three simple-type varieties this is.
+///
+/// The specification calls these *varieties* rather than kinds, and
+/// they are not interchangeable: length facets count characters on an
+/// atomic type and *items* on a list, so folding a list into its item
+/// type gets both the value space and the facets wrong.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Variety {
+    /// A single value.
+    Atomic,
+    /// A whitespace-separated sequence, every item of which satisfies
+    /// the item type.
+    List(Box<SimpleType>),
+    /// A value satisfying at least one member type.
+    Union(Vec<SimpleType>),
 }
 
 /// What may appear inside an element.

@@ -42,6 +42,8 @@ pub struct Unsupported {
 /// so ignoring them enforces nothing less.
 const HANDLED_ELEMENTS: &[&str] = &[
     "schema",
+    "list",
+    "union",
     "element",
     "complexType",
     "simpleType",

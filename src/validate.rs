@@ -5,7 +5,9 @@
 
 use oxml::{Document, NodeId, NodeKind};
 
-use crate::model::{BuiltIn, Content, Facets, Particle, Schema, SimpleType};
+use crate::model::{
+    BuiltIn, Content, Facets, Particle, Schema, SimpleType, Variety,
+};
 use crate::pattern::Pattern;
 
 /// One validation failure.
@@ -297,8 +299,81 @@ impl Validator<'_> {
 
 /// Check a text value against a simple type.
 fn check_simple(value: &str, st: &SimpleType) -> Result<(), String> {
-    check_builtin(value, st.base)?;
-    check_facets(value, &st.facets, st.base)
+    match &st.variety {
+        Variety::Atomic => {
+            check_builtin(value, st.base)?;
+            check_facets(value, &st.facets, st.base)
+        }
+        Variety::List(item) => check_list(value, item, &st.facets),
+        Variety::Union(members) => check_union(value, members, &st.facets),
+    }
+}
+
+/// Every item must satisfy the item type.
+///
+/// Length facets count *items* here, not characters: `minLength` on a
+/// list of three integers means three values, not three digits.
+/// Applying the atomic rule would compare a character count against an
+/// item count and agree by accident.
+fn check_list(
+    value: &str,
+    item: &SimpleType,
+    facets: &Facets,
+) -> Result<(), String> {
+    let items: Vec<&str> = value.split_whitespace().collect();
+    for one in &items {
+        check_simple(one, item)
+            .map_err(|e| format!("`{one}` is not a valid list item: {e}"))?;
+    }
+    let n = items.len();
+    if let Some(want) = facets.length {
+        if n != want {
+            return Err(format!("the list has {n} items, not {want}"));
+        }
+    }
+    if let Some(min) = facets.min_length {
+        if n < min {
+            return Err(format!("the list has {n} items, fewer than {min}"));
+        }
+    }
+    if let Some(max) = facets.max_length {
+        if n > max {
+            return Err(format!("the list has {n} items, more than {max}"));
+        }
+    }
+    // An enumeration on a list constrains the whole space-separated
+    // value, not the individual items.
+    if !facets.enumeration.is_empty() {
+        let joined = items.join(" ");
+        if !facets.enumeration.contains(&joined) {
+            return Err(format!("`{value}` is not one of the permitted lists"));
+        }
+    }
+    Ok(())
+}
+
+/// The value must satisfy at least one member type.
+///
+/// The union's own facets apply on top, so a restricted union both
+/// matches a member and satisfies the restriction.
+fn check_union(
+    value: &str,
+    members: &[SimpleType],
+    facets: &Facets,
+) -> Result<(), String> {
+    let matched = members.iter().any(|m| check_simple(value, m).is_ok());
+    if !matched {
+        return Err(format!(
+            "`{value}` matches none of the {} member types",
+            members.len()
+        ));
+    }
+    if facets.is_empty() {
+        return Ok(());
+    }
+    // Facets on a union are checked as strings: the value space is
+    // the union of its members', which have no single base type.
+    check_facets(value, facets, BuiltIn::String)
 }
 
 fn check_builtin(value: &str, base: BuiltIn) -> Result<(), String> {

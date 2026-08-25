@@ -9,7 +9,7 @@ use oxml::{Document, NodeId};
 
 use crate::model::{
     AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
-    SimpleType,
+    SimpleType, Variety,
 };
 
 /// Why a schema could not be read.
@@ -158,12 +158,8 @@ fn resolve_named_type(name: &str, schema: &Schema) -> Content {
     if let Some(st) = schema.named_simple_types.get(local) {
         return Content::Simple(st.clone());
     }
-    BuiltIn::from_name(name).map_or(Content::Any, |b| {
-        Content::Simple(SimpleType {
-            base: b,
-            facets: Facets::default(),
-        })
-    })
+    BuiltIn::from_name(name)
+        .map_or(Content::Any, |b| Content::Simple(SimpleType::atomic(b)))
 }
 
 fn parse_complex_type(
@@ -228,18 +224,12 @@ fn parse_attributes(
         let simple_type = if let Some(t) = doc.attribute(attr, "type") {
             match resolve_named_type(t, schema) {
                 Content::Simple(st) => st,
-                _ => SimpleType {
-                    base: BuiltIn::String,
-                    facets: Facets::default(),
-                },
+                _ => SimpleType::atomic(BuiltIn::String),
             }
         } else if let Some(st) = first_child_named(doc, attr, "simpleType") {
             parse_simple_type(doc, st, schema)
         } else {
-            SimpleType {
-                base: BuiltIn::String,
-                facets: Facets::default(),
-            }
+            SimpleType::atomic(BuiltIn::String)
         };
         out.push(AttributeDecl {
             name: name.to_owned(),
@@ -252,22 +242,36 @@ fn parse_attributes(
 
 /// Read a `simpleType` into the model.
 ///
-/// Infallible: an unsupported construct (a union or list) degrades to
-/// `xs:string` rather than rejecting the whole schema, so there is no
-/// error path to report.
+/// Infallible: a construct that cannot be resolved degrades to
+/// `xs:string` rather than rejecting the whole schema. Callers that
+/// need to know whether anything was skipped ask
+/// [`crate::support::unsupported`], which audits the document rather
+/// than trusting this to report.
 fn parse_simple_type(
     doc: &Document,
     id: NodeId,
     schema: &Schema,
 ) -> SimpleType {
+    // `list` and `union` are varieties in their own right, and are
+    // checked before `restriction` because a restriction *of* a list
+    // still has list-valued content.
+    if let Some(list) = first_child_named(doc, id, "list") {
+        return parse_list(doc, list, schema, Facets::default());
+    }
+    if let Some(union) = first_child_named(doc, id, "union") {
+        return parse_union(doc, union, schema, Facets::default());
+    }
+
     let Some(restriction) = first_child_named(doc, id, "restriction") else {
-        // A simpleType with a union or list is not supported; treat it
-        // as a string rather than rejecting the whole schema.
-        return SimpleType {
-            base: BuiltIn::String,
-            facets: Facets::default(),
-        };
+        return SimpleType::atomic(BuiltIn::String);
     };
+
+    // A restriction whose base is a list or union keeps that variety
+    // and adds facets to it; length facets then count *items*.
+    let inherited = doc
+        .attribute(restriction, "base")
+        .and_then(|b| named_simple_type(b, schema))
+        .filter(|st| st.variety != Variety::Atomic);
 
     let base_name = doc.attribute(restriction, "base").unwrap_or("string");
     let base = match resolve_named_type(base_name, schema) {
@@ -296,5 +300,85 @@ fn parse_simple_type(
             _ => {}
         }
     }
-    SimpleType { base, facets }
+    if let Some(mut inherited) = inherited {
+        inherited.facets = facets;
+        return inherited;
+    }
+    // A restriction may also nest the list or union inline.
+    if let Some(list) = first_child_named(doc, restriction, "list") {
+        return parse_list(doc, list, schema, facets);
+    }
+    if let Some(union) = first_child_named(doc, restriction, "union") {
+        return parse_union(doc, union, schema, facets);
+    }
+    SimpleType {
+        base,
+        facets,
+        variety: Variety::Atomic,
+    }
+}
+
+/// A named top-level simple type, if the schema declares one.
+fn named_simple_type(name: &str, schema: &Schema) -> Option<SimpleType> {
+    let local = name.rsplit(':').next().unwrap_or(name);
+    schema.named_simple_types.get(local).cloned()
+}
+
+/// `<xs:list itemType="..."/>` or `<xs:list><xs:simpleType>…`.
+fn parse_list(
+    doc: &Document,
+    id: NodeId,
+    schema: &Schema,
+    facets: Facets,
+) -> SimpleType {
+    let item = if let Some(name) = doc.attribute(id, "itemType") {
+        item_type(name, schema)
+    } else if let Some(inline) = first_child_named(doc, id, "simpleType") {
+        parse_simple_type(doc, inline, schema)
+    } else {
+        SimpleType::atomic(BuiltIn::String)
+    };
+    SimpleType {
+        base: BuiltIn::AnySimpleType,
+        facets,
+        variety: Variety::List(Box::new(item)),
+    }
+}
+
+/// `<xs:union memberTypes="a b"/>`, with any nested `simpleType`s
+/// added to the named ones.
+fn parse_union(
+    doc: &Document,
+    id: NodeId,
+    schema: &Schema,
+    facets: Facets,
+) -> SimpleType {
+    let mut members: Vec<SimpleType> = doc
+        .attribute(id, "memberTypes")
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(|name| item_type(name, schema))
+        .collect();
+    for &child in doc.children(id) {
+        if local_name(doc, child) == Some("simpleType") {
+            members.push(parse_simple_type(doc, child, schema));
+        }
+    }
+    if members.is_empty() {
+        members.push(SimpleType::atomic(BuiltIn::String));
+    }
+    SimpleType {
+        base: BuiltIn::AnySimpleType,
+        facets,
+        variety: Variety::Union(members),
+    }
+}
+
+/// Resolve a type name used as a list item or union member.
+fn item_type(name: &str, schema: &Schema) -> SimpleType {
+    if let Some(named) = named_simple_type(name, schema) {
+        return named;
+    }
+    BuiltIn::from_name(name)
+        .map_or_else(|| SimpleType::atomic(BuiltIn::String), SimpleType::atomic)
 }

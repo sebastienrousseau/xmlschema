@@ -103,7 +103,7 @@ pub mod validate;
 
 pub use model::{
     AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
-    SimpleType,
+    SimpleType, Variety,
 };
 pub use parse::{SchemaError, parse_schema};
 pub use pattern::{Pattern, PatternError};
