@@ -10,8 +10,8 @@ use oxml::{Document, NodeId};
 
 use crate::datatype::WhiteSpace;
 use crate::model::{
-    AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
-    SimpleType, Variety,
+    AttributeDecl, BuiltIn, Content, Facets, NamespaceConstraint, Occurs,
+    Particle, ProcessContents, Schema, SimpleType, Variety, Wildcard,
 };
 
 /// Why a schema could not be read.
@@ -283,7 +283,35 @@ fn parse_element(ctx: &Ctx, id: NodeId) -> Result<Particle, SchemaError> {
         attributes,
         fixed: doc.attribute(id, "fixed").map(str::to_owned),
         nillable: doc.attribute(id, "nillable") == Some("true"),
+        wildcard: None,
+        any_attribute: any_attribute_of(ctx, id),
     })
+}
+
+/// The `xs:anyAttribute` governing an element, from its inline
+/// complexType or from the named one it uses.
+fn any_attribute_of(ctx: &Ctx, id: NodeId) -> Option<Wildcard> {
+    let doc = ctx.doc;
+    let host = first_child_named(doc, id, "complexType").or_else(|| {
+        let name = doc.attribute(id, "type")?;
+        let local = name.rsplit(':').next().unwrap_or(name);
+        ctx.tops.complex_types.get(local).copied()
+    })?;
+    // It may sit directly on the type or inside a derivation.
+    let mut places = vec![host];
+    for wrapper in ["complexContent", "simpleContent"] {
+        if let Some(w) = first_child_named(doc, host, wrapper) {
+            for kind in ["extension", "restriction"] {
+                if let Some(node) = first_child_named(doc, w, kind) {
+                    places.push(node);
+                }
+            }
+        }
+    }
+    places
+        .into_iter()
+        .find_map(|p| first_child_named(doc, p, "anyAttribute"))
+        .map(|node| parse_wildcard(ctx, node))
 }
 
 fn resolve_named_type(ctx: &Ctx, name: &str) -> Content {
@@ -351,6 +379,34 @@ fn parse_complex_type_uncached(
     // A complexType with no particle and no simpleContent accepts
     // attributes only.
     Ok(Content::Empty)
+}
+
+/// Read an `xs:any` or `xs:anyAttribute`.
+fn parse_wildcard(ctx: &Ctx, id: NodeId) -> Wildcard {
+    let doc = ctx.doc;
+    let target = ctx.schema.target_namespace.clone();
+    let namespaces = match doc.attribute(id, "namespace") {
+        None | Some("##any") => NamespaceConstraint::Any,
+        Some("##other") => NamespaceConstraint::Other,
+        Some(list) => NamespaceConstraint::List(
+            list.split_whitespace()
+                .map(|item| match item {
+                    "##targetNamespace" => target.clone(),
+                    "##local" => None,
+                    uri => Some(uri.to_owned()),
+                })
+                .collect(),
+        ),
+    };
+    let process = match doc.attribute(id, "processContents") {
+        Some("skip") => ProcessContents::Skip,
+        Some("lax") => ProcessContents::Lax,
+        _ => ProcessContents::Strict,
+    };
+    Wildcard {
+        namespaces,
+        process,
+    }
 }
 
 /// The `sequence`, `choice` or `all` directly inside `id`, if any.
@@ -447,6 +503,16 @@ fn parse_particles(
     for &child in doc.children(id) {
         match local_name(doc, child) {
             Some("element") => out.push(parse_element(ctx, child)?),
+            Some("any") => out.push(Particle {
+                name: String::new(),
+                occurs: parse_occurs(doc, child),
+                content: Box::new(Content::Any),
+                attributes: Vec::new(),
+                fixed: None,
+                nillable: false,
+                wildcard: Some(parse_wildcard(ctx, child)),
+                any_attribute: None,
+            }),
             // A nested model group or a group reference contributes its
             // own particles. Flattening loses the grouping, which
             // matters for a choice; that is recorded by

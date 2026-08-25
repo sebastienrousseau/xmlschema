@@ -191,6 +191,44 @@ pub struct Particle {
     pub fixed: Option<String>,
     /// `@nillable` — `xsi:nil="true"` may stand in for content.
     pub nillable: bool,
+    /// When set, this particle is an `xs:any` wildcard rather than a
+    /// named element, and [`Particle::name`] is empty.
+    pub wildcard: Option<Wildcard>,
+    /// `xs:anyAttribute` on this element's type, if it has one.
+    pub any_attribute: Option<Wildcard>,
+}
+
+/// An `xs:any` or `xs:anyAttribute` wildcard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wildcard {
+    /// Which namespaces it admits.
+    pub namespaces: NamespaceConstraint,
+    /// How strictly the matched content is validated.
+    pub process: ProcessContents,
+}
+
+/// The `namespace` attribute of a wildcard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamespaceConstraint {
+    /// `##any` — anything at all.
+    Any,
+    /// `##other` — anything outside the target namespace.
+    Other,
+    /// An explicit list, where `##targetNamespace` and `##local` have
+    /// been resolved to a URI and to "no namespace" respectively.
+    List(Vec<Option<String>>),
+}
+
+/// The `processContents` attribute of a wildcard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessContents {
+    /// The matched element must have a declaration, and is validated
+    /// against it.
+    Strict,
+    /// Validated if a declaration is found, accepted otherwise.
+    Lax,
+    /// Not validated at all.
+    Skip,
 }
 
 /// An attribute declaration.

@@ -7,7 +7,8 @@ use oxml::{Document, NodeId, NodeKind};
 
 use crate::datatype::WhiteSpace;
 use crate::model::{
-    BuiltIn, Content, Facets, Particle, Schema, SimpleType, Variety,
+    BuiltIn, Content, Facets, NamespaceConstraint, Particle, ProcessContents,
+    Schema, SimpleType, Variety,
 };
 use crate::pattern::Pattern;
 
@@ -61,8 +62,17 @@ impl std::fmt::Display for Report {
     }
 }
 
+/// The XML Schema instance namespace, whose attributes -- `xsi:nil`,
+/// `xsi:type` and the two `schemaLocation`s -- are defined by the
+/// specification rather than by the schema being validated against.
+const XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
+
 struct Validator<'a> {
     doc: &'a Document,
+    schema: &'a Schema,
+    /// The schema's target namespace, which `##other` is defined
+    /// against.
+    target: Option<String>,
     report: Report,
 }
 
@@ -71,6 +81,8 @@ struct Validator<'a> {
 pub fn validate(doc: &Document, schema: &Schema) -> Report {
     let mut v = Validator {
         doc,
+        schema,
+        target: schema.target_namespace.clone(),
         report: Report::default(),
     };
 
@@ -218,7 +230,7 @@ impl Validator<'_> {
                     .element_name(child)
                     .map(|n| n.local.as_str())
                     .unwrap_or_default();
-                if child_name != particle.name {
+                if !self.particle_matches(child, particle, child_name) {
                     break;
                 }
                 if particle.occurs.max.is_some_and(|m| seen >= m) {
@@ -230,7 +242,7 @@ impl Validator<'_> {
                 } else {
                     format!("{path}/{child_name}[{seen}]")
                 };
-                self.check_element(child, particle, &child_path);
+                self.check_matched(child, particle, &child_path);
                 index += 1;
             }
             if !particle.occurs.permits(seen) {
@@ -307,6 +319,37 @@ impl Validator<'_> {
     }
 
     fn check_attributes(&mut self, node: NodeId, decl: &Particle, path: &str) {
+        // An `xs:anyAttribute` admits attributes the type does not
+        // declare. Without it, undeclared attributes are simply not
+        // reported by this validator either way -- but with a strict
+        // one they must have a top-level declaration.
+        if let Some(wildcard) = decl.any_attribute.as_ref() {
+            if wildcard.process == ProcessContents::Strict {
+                for &attr in self.doc.attribute_nodes(node) {
+                    let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
+                        continue;
+                    };
+                    let Some(name) = self.doc.name(a.name) else {
+                        continue;
+                    };
+                    let local = name.local.clone();
+                    // `xsi:` attributes are defined by the schema
+                    // instance namespace, not by this schema.
+                    if name.namespace.as_deref() == Some(XSI) {
+                        continue;
+                    }
+                    if decl.attributes.iter().all(|d| d.name != local) {
+                        self.violate(
+                            &format!("{path}/@{local}"),
+                            "matched a strict wildcard but has no \
+                             declaration"
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
+        }
+
         for want in &decl.attributes {
             match self.doc.attribute(node, &want.name) {
                 Some(_) if want.prohibited => {
@@ -366,7 +409,10 @@ impl Validator<'_> {
                 .element_name(child)
                 .map(|n| n.local.clone())
                 .unwrap_or_default();
-            match particles.iter().position(|p| p.name == name) {
+            match particles
+                .iter()
+                .position(|p| self.particle_matches(child, p, &name))
+            {
                 Some(index) => {
                     counts[index] += 1;
                     if counts[index] > 1 {
@@ -376,11 +422,8 @@ impl Validator<'_> {
                         );
                     } else {
                         let child_path = format!("{path}/{name}");
-                        self.check_element(
-                            child,
-                            &particles[index],
-                            &child_path,
-                        );
+                        let particle = particles[index].clone();
+                        self.check_matched(child, &particle, &child_path);
                     }
                 }
                 None => self
@@ -394,6 +437,77 @@ impl Validator<'_> {
                     format!("missing required `{}`", particle.name),
                 );
             }
+        }
+    }
+
+    /// Whether `child` is what `particle` declares.
+    ///
+    /// A named particle matches by local name; a wildcard matches by
+    /// namespace, which is the whole reason it exists.
+    fn particle_matches(
+        &self,
+        child: NodeId,
+        particle: &Particle,
+        child_name: &str,
+    ) -> bool {
+        let Some(wildcard) = particle.wildcard.as_ref() else {
+            return child_name == particle.name;
+        };
+        let namespace = self
+            .doc
+            .element_name(child)
+            .and_then(|n| n.namespace.clone());
+        match &wildcard.namespaces {
+            NamespaceConstraint::Any => true,
+            // `##other` is anything *outside* the target namespace,
+            // and an unqualified element is outside every namespace.
+            NamespaceConstraint::Other => {
+                namespace.as_deref() != self.target.as_deref()
+            }
+            NamespaceConstraint::List(allowed) => {
+                allowed.iter().any(|a| a.as_deref() == namespace.as_deref())
+            }
+        }
+    }
+
+    /// Validate a child that a particle matched.
+    ///
+    /// For a wildcard this depends on `processContents`: `skip`
+    /// validates nothing, `lax` validates only if the element has a
+    /// top-level declaration, and `strict` requires one.
+    fn check_matched(
+        &mut self,
+        child: NodeId,
+        particle: &Particle,
+        path: &str,
+    ) {
+        let Some(wildcard) = particle.wildcard.as_ref() else {
+            self.check_element(child, particle, path);
+            return;
+        };
+        if wildcard.process == ProcessContents::Skip {
+            return;
+        }
+        let name = self
+            .doc
+            .element_name(child)
+            .map(|n| n.local.clone())
+            .unwrap_or_default();
+        match self.schema.elements.get(&name) {
+            Some(decl) => {
+                let decl = decl.clone();
+                self.check_element(child, &decl, path);
+            }
+            None if wildcard.process == ProcessContents::Strict => {
+                self.violate(
+                    path,
+                    format!(
+                        "`{name}` matched a strict wildcard but has no \
+                         declaration"
+                    ),
+                );
+            }
+            None => {}
         }
     }
 

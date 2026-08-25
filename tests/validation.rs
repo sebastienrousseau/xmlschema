@@ -239,3 +239,79 @@ fn choice_accepts_any_declared_branch() {
     assert_eq!(report.violations.len(), 1);
     assert!(report.violations[0].message.contains("card"));
 }
+
+/// `xs:any` matches by namespace, and `processContents` decides how
+/// hard the match is validated.
+#[test]
+fn a_wildcard_matches_by_namespace() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="known" type="xs:integer"/>
+  <xs:element name="r">
+    <xs:complexType><xs:sequence>
+      <xs:element name="a" type="xs:string"/>
+      <xs:any namespace='##any' processContents="lax" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    // The wildcard admits an element the type never declared.
+    assert!(valid("<r><a>x</a><anything/></r>"));
+    assert!(valid("<r><a>x</a><one/><two/></r>"));
+    // Under `lax` a matched element *with* a declaration is still
+    // validated against it.
+    assert!(valid("<r><a>x</a><known>42</known></r>"));
+    assert!(
+        !valid("<r><a>x</a><known>not a number</known></r>"),
+        "lax still validates what it can resolve"
+    );
+    // The wildcard does not excuse the declared particle.
+    assert!(!valid("<r><anything/></r>"), "`a` is still required");
+}
+
+/// A strict wildcard requires the matched element to be declared.
+#[test]
+fn a_strict_wildcard_requires_a_declaration() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="known" type="xs:string"/>
+  <xs:element name="r">
+    <xs:complexType><xs:sequence>
+      <xs:any namespace='##any' processContents="strict"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(valid("<r><known>x</known></r>"));
+    assert!(!valid("<r><undeclared/></r>"), "strict needs a declaration");
+}
+
+/// `xs:anyAttribute` admits attributes the type does not declare.
+#[test]
+fn an_attribute_wildcard_admits_undeclared_attributes() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="r">
+    <xs:complexType>
+      <xs:attribute name="known" type="xs:integer"/>
+      <xs:anyAttribute namespace='##any' processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(valid(r#"<r other="anything"/>"#));
+    // The declared one is still checked.
+    assert!(!valid(r#"<r known="not a number"/>"#));
+}

@@ -60,6 +60,8 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "group",
     "attributeGroup",
     "complexContent",
+    "any",
+    "anyAttribute",
     // Facets, handled below by name.
     "enumeration",
     "pattern",
