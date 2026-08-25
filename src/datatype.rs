@@ -425,10 +425,17 @@ impl Datatype {
     #[must_use]
     pub fn compare(self, a: &str, b: &str) -> Option<core::cmp::Ordering> {
         if self.is_numeric() {
-            return compare_decimal(
-                self.normalise(a).as_ref(),
-                self.normalise(b).as_ref(),
-            );
+            // Both sides must belong to the type. Without this,
+            // `compare("x", "1")` answered `Greater`: the decimal
+            // comparison read `x` as a one-character magnitude and
+            // ordered it against `1` by character. Values reaching
+            // here have usually been validated already, which is
+            // exactly why the hole was invisible.
+            let (a, b) = (self.normalise(a), self.normalise(b));
+            if !self.accepts_normalised(&a) || !self.accepts_normalised(&b) {
+                return None;
+            }
+            return compare_decimal(&a, &b);
         }
         let (x, y) = (self.order_key(a)?, self.order_key(b)?);
         x.partial_cmp(&y)

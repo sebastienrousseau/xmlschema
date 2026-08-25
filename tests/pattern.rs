@@ -296,3 +296,105 @@ fn a_pattern_ending_mid_construct_is_an_error_not_a_panic() {
         assert!(Pattern::compile(bad).is_err(), "`{bad}` should not compile");
     }
 }
+
+/// The XSD dialect has escapes no other regex flavour has.
+#[test]
+fn the_xsd_specific_escapes_are_supported() {
+    // `\i` is a character a name may start with, `\c` one it may
+    // contain. Neither exists in PCRE.
+    let start = Pattern::compile(r"\i\c*").expect("compiles");
+    assert!(start.matches("abc"));
+    assert!(start.matches("_a-b.c"));
+    assert!(!start.matches("1abc"), "a name may not start with a digit");
+    assert!(!start.matches("a b"), "a space is not a name character");
+
+    // Their negations.
+    let not_start = Pattern::compile(r"\I").expect("compiles");
+    assert!(not_start.matches("1"));
+    assert!(!not_start.matches("a"));
+
+    let not_char = Pattern::compile(r"\C").expect("compiles");
+    assert!(not_char.matches(" "));
+    assert!(!not_char.matches("a"));
+}
+
+/// A Unicode category this engine cannot decide exactly is a compile
+/// error rather than a guess.
+#[test]
+fn unicode_categories_are_a_whitelist_not_a_guess() {
+    for ok in [r"\p{L}+", r"\p{Lu}", r"\p{Ll}", r"\p{N}", r"\p{Nd}+"] {
+        assert!(Pattern::compile(ok).is_ok(), "{ok}");
+    }
+    // Approximating these would match the wrong set, and a pattern
+    // that quietly matches the wrong set is worse than one that
+    // refuses to compile: a refusal is reported as unenforceable.
+    for refused in [r"\p{Lt}", r"\p{IsBasicLatin}", r"\p{Sc}", r"\p{Mn}"] {
+        let e = Pattern::compile(refused).expect_err("{refused}");
+        assert!(e.to_string().contains("not supported"), "{refused}: {e}");
+    }
+    // Malformed forms are errors too.
+    assert!(Pattern::compile(r"\pL").is_err(), "no brace");
+    assert!(Pattern::compile(r"\p{L").is_err(), "unterminated");
+
+    let letters = Pattern::compile(r"\p{L}+").expect("compiles");
+    assert!(letters.matches("abcXYZ"));
+    assert!(!letters.matches("abc1"));
+}
+
+#[test]
+fn a_pattern_must_match_the_whole_value() {
+    // XSD anchors implicitly at both ends, unlike most engines.
+    let p = Pattern::compile("abc").expect("compiles");
+    assert!(p.matches("abc"));
+    assert!(!p.matches("xabc"), "a leading extra");
+    assert!(!p.matches("abcx"), "a trailing extra");
+}
+
+#[test]
+fn alternation_and_grouping_combine() {
+    let p = Pattern::compile("(ab|cd)+e").expect("compiles");
+    assert!(p.matches("abe"));
+    assert!(p.matches("cde"));
+    assert!(p.matches("abcdabe"));
+    assert!(!p.matches("ace"));
+}
+
+#[test]
+fn malformed_patterns_are_rejected_rather_than_guessed() {
+    for bad in ["(", "[", "a{", "a{2,1x}", "*", "+abc", r"\"] {
+        assert!(Pattern::compile(bad).is_err(), "`{bad}` should not compile");
+    }
+}
+
+/// Each supported category decides the characters it names.
+#[test]
+fn the_supported_categories_match_their_characters() {
+    let cases: &[(&str, &str, &str)] = &[
+        // (pattern, matches, does not match)
+        (r"\p{L}+", "abcDEF", "abc1"),
+        (r"\p{Lu}+", "ABC", "abc"),
+        (r"\p{Ll}+", "abc", "ABC"),
+        (r"\p{N}+", "123", "abc"),
+        (r"\p{Nd}+", "456", "xyz"),
+        (r"\p{Zs}+", " ", "a"),
+        (r"\p{Z}+", " ", "a"),
+        (r"\p{C}+", "\u{7}", "a"),
+    ];
+    for (pattern, yes, no) in cases {
+        let p = Pattern::compile(pattern)
+            .unwrap_or_else(|e| panic!("{pattern}: {e}"));
+        assert!(p.matches(yes), "{pattern} should match {yes:?}");
+        assert!(!p.matches(no), "{pattern} should not match {no:?}");
+    }
+    // And a negated category.
+    let not_digit = Pattern::compile(r"\P{Nd}+").expect("compiles");
+    assert!(not_digit.matches("abc"));
+    assert!(!not_digit.matches("123"));
+}
+
+#[test]
+fn a_malformed_quantifier_bound_is_an_error() {
+    for bad in ["a{2,x}", "a{x}", "a{2,3", "a{,2}"] {
+        assert!(Pattern::compile(bad).is_err(), "`{bad}`");
+    }
+}

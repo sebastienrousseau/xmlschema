@@ -77,14 +77,6 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "whiteSpace",
 ];
 
-/// Built-in types mapped to a *weaker* type than the specification
-/// defines, with what that gives up.
-///
-/// These are the dangerous ones: the schema parses, validation runs,
-/// and the answer is wrong only for values the real type would have
-/// rejected. A document that happens to be valid agrees either way.
-const LOSSY_BUILT_INS: &[(&str, &str)] = &[];
-
 /// Every construct in `doc` that this crate does not enforce.
 ///
 /// An empty result means the schema is enforced in full, so a
@@ -186,14 +178,6 @@ fn check_type_reference(
     out: &mut Vec<Unsupported>,
 ) {
     let local = type_name.rsplit(':').next().unwrap_or(type_name);
-    if let Some((_, effect)) = LOSSY_BUILT_INS.iter().find(|(n, _)| *n == local)
-    {
-        out.push(Unsupported {
-            construct: format!("xs:{local}"),
-            effect: (*effect).to_owned(),
-        });
-        return;
-    }
     if oxml_builtin(local) || names_a_local_type(doc, local) {
         return;
     }

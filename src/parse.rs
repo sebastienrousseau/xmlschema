@@ -3,7 +3,7 @@
 
 //! Reading an `.xsd` into a [`Schema`].
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 use oxml::{Document, NodeId};
@@ -67,6 +67,8 @@ struct Ctx<'a> {
     /// circular model group, but a schema is untrusted input and the
     /// alternative to a bound is a stack overflow.
     depth: usize,
+    /// Particles built so far, against [`MAX_PARTICLES`].
+    budget: &'a Cell<usize>,
 }
 
 impl<'a> Ctx<'a> {
@@ -78,12 +80,50 @@ impl<'a> Ctx<'a> {
             tops: self.tops,
             memo: self.memo,
             depth: self.depth + 1,
+            budget: self.budget,
         })
+    }
+
+    /// Charge one particle against the budget.
+    fn charge(&self) -> Result<(), SchemaError> {
+        self.charge_many(1)
+    }
+
+    /// Charge `n` particles against the budget.
+    ///
+    /// A *use* of a type is charged, not a parse of it: the memo makes
+    /// parsing linear, but each use clones the whole content model, so
+    /// the cost that matters is the materialised tree.
+    fn charge_many(&self, n: usize) -> Result<(), SchemaError> {
+        let spent = self.budget.get().saturating_add(n);
+        self.budget.set(spent);
+        if spent > MAX_PARTICLES {
+            return err(format!(
+                "the schema's content models expand past {MAX_PARTICLES} \
+                 particles; a type that references another twice doubles \
+                 at every level"
+            ));
+        }
+        Ok(())
     }
 }
 
 /// How far a chain of `ref`s and group references may nest.
 const MAX_REFERENCE_DEPTH: usize = 64;
+
+/// How many particles a schema's expanded content models may total.
+///
+/// A referenced type is *inlined* where it is used, so a schema whose
+/// every type names the previous one twice doubles at each level: 24
+/// levels is sixteen million particles, from a schema of a few
+/// kilobytes. Depth alone does not bound that -- each level is within
+/// the reference limit -- and neither does memoising the parse, since
+/// the cost is in the materialised tree rather than the work to build
+/// it.
+///
+/// Generous enough that no real schema approaches it: the largest in
+/// the W3C suite expands to a few thousand.
+const MAX_PARTICLES: usize = 100_000;
 
 fn err<T>(message: impl Into<String>) -> Result<T, SchemaError> {
     Err(SchemaError {
@@ -120,6 +160,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     check_structure(&doc)?;
 
     let memo = RefCell::new(Memo::default());
+    let budget = Cell::new(0usize);
 
     // Every top-level declaration is indexed first, because a `ref` or
     // a group reference may point forward.
@@ -153,6 +194,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
                     tops: &tops,
                     memo: &memo,
                     depth: 0,
+                    budget: &budget,
                 };
                 let st = parse_simple_type(&ctx, child);
                 let _ = schema.named_simple_types.insert(name.to_owned(), st);
@@ -168,6 +210,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
             tops: &tops,
             memo: &memo,
             depth: 0,
+            budget: &budget,
         };
         let content = parse_complex_type(&ctx, node)?;
         let _ = schema.named_complex_types.insert(name.clone(), content);
@@ -181,6 +224,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
                 tops: &tops,
                 memo: &memo,
                 depth: 0,
+                budget: &budget,
             };
             let particle = parse_element(&ctx, child)?;
             let _ = schema.elements.insert(particle.name.clone(), particle);
@@ -373,6 +417,7 @@ fn parse_element(ctx: &Ctx, id: NodeId) -> Result<Particle, SchemaError> {
         Vec::new()
     };
 
+    ctx.charge()?;
     Ok(Particle {
         name: name.to_owned(),
         occurs,
@@ -452,16 +497,32 @@ fn resolve_named_type(ctx: &Ctx, name: &str) -> Content {
 }
 
 fn parse_complex_type(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
-    if let Some(hit) = ctx.memo.borrow().content.get(&id.index()) {
-        return Ok(hit.clone());
+    let cached = ctx.memo.borrow().content.get(&id.index()).cloned();
+    if let Some(hit) = cached {
+        // Charged on every use, not only the first: this is another
+        // copy of the whole model.
+        ctx.charge_many(particle_count(&hit))?;
+        return Ok(hit);
     }
     let content = parse_complex_type_uncached(ctx, id)?;
+    ctx.charge_many(particle_count(&content))?;
     let _ = ctx
         .memo
         .borrow_mut()
         .content
         .insert(id.index(), content.clone());
     Ok(content)
+}
+
+/// How many particles a content model holds, counting nested ones.
+fn particle_count(content: &Content) -> usize {
+    match content {
+        Content::Sequence(p) | Content::Choice(p) | Content::All(p) => p
+            .iter()
+            .map(|particle| 1 + particle_count(&particle.content))
+            .sum(),
+        _ => 0,
+    }
 }
 
 fn parse_complex_type_uncached(
@@ -872,12 +933,24 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         inherited.facets = facets;
         return inherited;
     }
-    // A restriction may also nest the list or union inline.
-    if let Some(list) = first_child_named(doc, restriction, "list") {
-        return parse_list(ctx, list, facets);
-    }
-    if let Some(union) = first_child_named(doc, restriction, "union") {
-        return parse_union(ctx, union, facets);
+    // A restriction may nest the list or union inline, either
+    // directly or wrapped in its own `simpleType`. The wrapped form
+    // is what the specification's own examples use, and missing it
+    // dropped the variety: a length facet then counted characters on
+    // a list, which agrees with an item count on short values.
+    for host in [
+        Some(restriction),
+        first_child_named(doc, restriction, "simpleType"),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Some(list) = first_child_named(doc, host, "list") {
+            return parse_list(ctx, list, facets);
+        }
+        if let Some(union) = first_child_named(doc, host, "union") {
+            return parse_union(ctx, union, facets);
+        }
     }
     SimpleType {
         base,

@@ -349,3 +349,81 @@ fn a_schema_breaking_xsds_own_structure_is_rejected() {
         "one annotation, first, with one content model"
     );
 }
+
+/// A wildcard's namespace constraint takes four forms.
+#[test]
+fn a_wildcard_namespace_constraint_is_read_in_every_form() {
+    let with = |ns: &str| {
+        format!(
+            r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                          targetNamespace="urn:t" xmlns:t="urn:t">
+                 <xs:element name="r">
+                   <xs:complexType><xs:sequence>
+                     <xs:any namespace='{ns}'  processContents="skip"/>
+                   </xs:sequence></xs:complexType>
+                 </xs:element>
+               </xs:schema>"#
+        )
+    };
+    // Each form parses; `##other` and a list are the ones that were
+    // never exercised.
+    for ns in [
+        "##any",
+        "##other",
+        "urn:a urn:b",
+        "##targetNamespace ##local",
+    ] {
+        assert!(parse_schema(&with(ns)).is_ok(), "namespace={ns}");
+    }
+    // A wildcard with no `namespace` attribute means `##any`.
+    let bare = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+        <xs:element name="r">
+          <xs:complexType><xs:sequence><xs:any/></xs:sequence></xs:complexType>
+        </xs:element></xs:schema>"#;
+    assert!(parse_schema(bare).is_ok());
+}
+
+/// `##other` admits anything outside the target namespace, which
+/// includes an unqualified element.
+#[test]
+fn other_excludes_only_the_target_namespace() {
+    let xsd = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                             targetNamespace="urn:t"
+                             xmlns:t="urn:t"
+                             elementFormDefault="qualified">
+        <xs:element name="r">
+          <xs:complexType><xs:sequence>
+            <xs:any namespace='##other' processContents="skip"/>
+          </xs:sequence></xs:complexType>
+        </xs:element></xs:schema>"#;
+    let s = parse_schema(xsd).expect("schema parses");
+    let ok =
+        oxml::parse(r#"<r xmlns="urn:t"><foo xmlns="urn:elsewhere"/></r>"#)
+            .expect("well-formed");
+    assert!(
+        validate(&ok, &s).is_valid(),
+        "a foreign namespace is admitted"
+    );
+
+    let no = oxml::parse(r#"<r xmlns="urn:t"><foo xmlns="urn:t"/></r>"#)
+        .expect("well-formed");
+    assert!(!validate(&no, &s).is_valid(), "the target namespace is not");
+}
+
+/// A document that is not a schema is rejected, and says why.
+#[test]
+fn a_document_that_is_not_a_schema_is_rejected() {
+    // Well-formed XML, but not an xs:schema.
+    let e = parse_schema("<notSchema/>").expect_err("not a schema");
+    assert!(e.to_string().contains("xs:schema"), "{e}");
+
+    // Not well-formed at all.
+    let e = parse_schema("<a><unclosed></a>").expect_err("not well-formed");
+    assert!(e.to_string().contains("well-formed"), "{e}");
+
+    // A document with no root element is not well-formed XML, so the
+    // parser refuses it before a schema is ever considered — which is
+    // why `validate`'s own no-root branch cannot be reached through
+    // the public API.
+    assert!(oxml::parse("<!-- nothing -->").is_err());
+}
