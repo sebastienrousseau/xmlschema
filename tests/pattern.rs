@@ -431,3 +431,53 @@ fn a_character_class_may_subtract_another() {
     // And a malformed one is an error rather than a guess.
     assert!(Pattern::compile("[a-[b]").is_err(), "unterminated");
 }
+
+/// XSD's `\d` is `\p{Nd}`, not `[0-9]`.
+#[test]
+fn a_digit_is_a_digit_in_any_script() {
+    let d = Pattern::compile(r"\d+").expect("compiles");
+    assert!(d.matches("0123456789"), "ASCII");
+    assert!(d.matches("\u{0660}\u{0661}"), "Arabic-Indic");
+    assert!(d.matches("\u{09E6}"), "Bengali");
+    assert!(d.matches("\u{0AE6}"), "Gujarati");
+    assert!(d.matches("\u{FF10}"), "fullwidth");
+    assert!(!d.matches("a"));
+
+    // `Nd` is decimal digits only. `char::is_numeric` also answers
+    // true for Nl and No, which would make these digits.
+    let not_d = Pattern::compile(r"\D").expect("compiles");
+    assert!(not_d.matches("\u{1034A}"), "a Gothic numeral is Nl, not Nd");
+    assert!(not_d.matches("\u{00BD}"), "a vulgar fraction is No");
+    assert!(!not_d.matches("5"));
+
+    // `\p{Nd}` is the same set.
+    let nd = Pattern::compile(r"\p{Nd}").expect("compiles");
+    assert!(nd.matches("\u{0660}"));
+    assert!(!nd.matches("\u{1034A}"));
+}
+
+/// XSD's `\s` is four characters, not Unicode whitespace.
+#[test]
+fn the_space_escape_is_exactly_four_characters() {
+    let s = Pattern::compile(r"\s+").expect("compiles");
+    for ok in [" ", "\t", "\n", "\r", " \t\n\r"] {
+        assert!(s.matches(ok), "{ok:?}");
+    }
+    // A non-breaking space is whitespace to Unicode and not `\s` here.
+    assert!(!s.matches("\u{00A0}"));
+    assert!(!s.matches("\u{2003}"), "an em space");
+
+    let not_s = Pattern::compile(r"\S").expect("compiles");
+    assert!(not_s.matches("\u{00A0}"));
+    assert!(!not_s.matches(" "));
+}
+
+/// A range's upper bound may itself be escaped.
+#[test]
+fn a_range_bound_may_be_escaped() {
+    let p = Pattern::compile(r"[a-\}]+").expect("compiles");
+    assert!(p.matches("abcxyz}"), "the range runs from a to a brace");
+    assert!(!p.matches("~"), "which is past the end");
+    // An escape with nothing after it is still an error.
+    assert!(Pattern::compile(r"[a-\").is_err());
+}

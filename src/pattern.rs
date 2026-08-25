@@ -76,6 +76,33 @@ enum ClassItem {
     },
 }
 
+/// The code point of `0` in every Unicode decimal-digit block.
+///
+/// Every `Nd` block is a contiguous run of ten starting at its own
+/// zero, which is a property Unicode guarantees. Listing the starts is
+/// therefore exact rather than an approximation, and `char::is_numeric`
+/// is not a substitute: it also answers true for `Nl` and `No`, so
+/// `\P{Nd}` wrongly rejected the Gothic numerals.
+const DECIMAL_ZEROS: &[u32] = &[
+    0x0030, 0x0660, 0x06F0, 0x07C0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66,
+    0x0BE6, 0x0C66, 0x0CE6, 0x0D66, 0x0DE6, 0x0E50, 0x0ED0, 0x0F20, 0x1040,
+    0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80, 0x1A90, 0x1B50, 0x1BB0,
+    0x1C40, 0x1C50, 0xA620, 0xA8D0, 0xA900, 0xA9D0, 0xA9F0, 0xAA50, 0xABF0,
+    0xFF10, 0x104A0, 0x10D30, 0x11066, 0x110F0, 0x11136, 0x111D0, 0x112F0,
+    0x11450, 0x114D0, 0x11650, 0x116C0, 0x11730, 0x118E0, 0x11950, 0x11C50,
+    0x11D50, 0x11DA0, 0x16A60, 0x16AC0, 0x16B50, 0x1D7CE, 0x1D7D8, 0x1D7E2,
+    0x1D7EC, 0x1D7F6, 0x1E140, 0x1E2F0, 0x1E4F0, 0x1E950, 0x1FBF0,
+];
+
+/// Whether `c` is a decimal digit in any script.
+///
+/// XSD's `\d` is `\p{Nd}`, not `[0-9]`: an Arabic-Indic or Bengali
+/// digit is a digit.
+fn is_decimal_digit(c: char) -> bool {
+    let n = c as u32;
+    DECIMAL_ZEROS.iter().any(|zero| n >= *zero && n < zero + 10)
+}
+
 /// A Unicode general category this engine can decide exactly.
 ///
 /// The categories are deliberately a whitelist. An approximation --
@@ -90,7 +117,7 @@ fn category_matches(name: &str, c: char) -> Option<bool> {
         "Lu" => c.is_uppercase(),
         "Ll" => c.is_lowercase(),
         "N" => c.is_numeric(),
-        "Nd" => c.is_numeric() && c.is_ascii_digit() || c.is_numeric(),
+        "Nd" => is_decimal_digit(c),
         "Zs" => c.is_whitespace() && !matches!(c, '\n' | '\r' | '\t'),
         "Z" => c.is_whitespace(),
         "C" | "Cc" => c.is_control(),
@@ -428,10 +455,17 @@ impl Parser<'_> {
                     .is_some_and(|n| *n != ']' && *n != '[')
             {
                 self.pos += 1;
-                let hi = self.peek().ok_or_else(|| PatternError {
+                let mut hi = self.peek().ok_or_else(|| PatternError {
                     message: "unterminated range".to_owned(),
                 })?;
                 self.pos += 1;
+                // The upper bound may be escaped, as in `[a-\}]`.
+                if hi == '\\' {
+                    hi = self.peek().ok_or_else(|| PatternError {
+                        message: "trailing backslash in range".to_owned(),
+                    })?;
+                    self.pos += 1;
+                }
                 items.push(ClassItem::Range(c, hi));
             } else {
                 items.push(ClassItem::Char(c));
@@ -501,12 +535,14 @@ fn item_matches(item: &ClassItem, c: char) -> bool {
     match item {
         ClassItem::Char(x) => *x == c,
         ClassItem::Range(lo, hi) => c >= *lo && c <= *hi,
-        ClassItem::Digit => c.is_ascii_digit(),
-        ClassItem::NotDigit => !c.is_ascii_digit(),
+        ClassItem::Digit => is_decimal_digit(c),
+        ClassItem::NotDigit => !is_decimal_digit(c),
         ClassItem::Word => c.is_alphanumeric() || c == '_',
         ClassItem::NotWord => !(c.is_alphanumeric() || c == '_'),
-        ClassItem::Space => c.is_whitespace(),
-        ClassItem::NotSpace => !c.is_whitespace(),
+        // XSD defines `\s` as exactly these four characters, not as
+        // Unicode whitespace: a non-breaking space is not `\s`.
+        ClassItem::Space => matches!(c, ' ' | '\t' | '\n' | '\r'),
+        ClassItem::NotSpace => !matches!(c, ' ' | '\t' | '\n' | '\r'),
         ClassItem::NameStart => is_name_start(c),
         ClassItem::NotNameStart => !is_name_start(c),
         ClassItem::NameChar => is_name_char(c),
