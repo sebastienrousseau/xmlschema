@@ -88,6 +88,12 @@ pub struct Facets {
     pub min_exclusive: Option<f64>,
     /// `xs:maxExclusive`
     pub max_exclusive: Option<f64>,
+    /// `xs:totalDigits` — the count of significant digits.
+    pub total_digits: Option<usize>,
+    /// `xs:fractionDigits` — the count of digits after the point.
+    pub fraction_digits: Option<usize>,
+    /// `xs:whiteSpace` — overrides the base type's own rule.
+    pub white_space: Option<crate::datatype::WhiteSpace>,
 }
 
 impl Facets {
@@ -146,7 +152,12 @@ pub enum Variety {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Content {
     /// No child elements; the text must satisfy the simple type.
-    Simple(SimpleType),
+    ///
+    /// Boxed because a `SimpleType` carries a `Variety`, which may
+    /// hold a whole list item type or a vector of union members; left
+    /// inline it makes every `Content` -- including the empty ones --
+    /// as large as the largest simple type in the schema.
+    Simple(Box<SimpleType>),
     /// Children must appear in this order.
     Sequence(Vec<Particle>),
     /// Exactly one branch must match.

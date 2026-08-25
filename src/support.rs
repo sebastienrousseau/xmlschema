@@ -66,6 +66,9 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "maxInclusive",
     "minExclusive",
     "maxExclusive",
+    "totalDigits",
+    "fractionDigits",
+    "whiteSpace",
 ];
 
 /// Built-in types mapped to a *weaker* type than the specification

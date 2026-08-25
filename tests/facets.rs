@@ -218,3 +218,68 @@ fn an_unrecognised_base_type_falls_back_to_string() {
     assert!(accepts(&s, "ab"));
     assert!(!accepts(&s, "a"));
 }
+
+/// `xs:totalDigits` and `xs:fractionDigits` count *significant*
+/// digits, which is a property of the value and not of how it was
+/// written.
+#[test]
+fn digit_facets_count_significant_digits() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:decimal">
+        <xs:totalDigits value="3"/>
+        <xs:fractionDigits value="1"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let accepts = |v: &str| {
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(accepts("12.3"), "three total, one fraction");
+    assert!(
+        accepts("1.0"),
+        "trailing fraction zeros are not significant"
+    );
+    assert!(accepts("012.3"), "leading zeros are not significant");
+    assert!(accepts("0"), "zero has one significant digit");
+    assert!(accepts("-12.3"), "the sign is not a digit");
+    assert!(!accepts("1234"), "four total digits");
+    assert!(!accepts("1.23"), "two fraction digits");
+}
+
+/// `xs:whiteSpace` decides what the value *is*, so it applies before
+/// every other check.
+#[test]
+fn the_whitespace_facet_applies_before_validation() {
+    let with = |rule: &str| {
+        format!(
+            r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="v">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:whiteSpace value="{rule}"/>
+        <xs:maxLength value="3"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>"#
+        )
+    };
+    let accepts = |rule: &str, v: &str| {
+        let schema = parse_schema(&with(rule)).expect("schema parses");
+        let doc = oxml::parse(&format!("<v>{v}</v>")).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    // "  a  " is five characters preserved, one collapsed.
+    assert!(!accepts("preserve", "  a  "), "five characters");
+    assert!(accepts("collapse", "  a  "), "collapses to one");
+    // Replace turns tabs into spaces without collapsing them.
+    assert!(!accepts("replace", "\ta\tb\t"), "still five characters");
+    assert!(accepts("collapse", "\ta\tb\t"), "collapses to three");
+}

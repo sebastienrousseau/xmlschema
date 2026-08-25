@@ -5,6 +5,7 @@
 
 use oxml::{Document, NodeId, NodeKind};
 
+use crate::datatype::WhiteSpace;
 use crate::model::{
     BuiltIn, Content, Facets, Particle, Schema, SimpleType, Variety,
 };
@@ -301,8 +302,16 @@ impl Validator<'_> {
 fn check_simple(value: &str, st: &SimpleType) -> Result<(), String> {
     match &st.variety {
         Variety::Atomic => {
-            check_builtin(value, st.base)?;
-            check_facets(value, &st.facets, st.base)
+            // `whiteSpace` is applied before anything else, because it
+            // decides what the value *is*. A restriction may only
+            // narrow the base's own rule -- preserve to replace to
+            // collapse -- so overriding it here is the whole effect.
+            let normalised = match st.facets.white_space {
+                Some(rule) => apply_white_space(value, rule),
+                None => st.base.normalise(value).into_owned(),
+            };
+            check_builtin(&normalised, st.base)?;
+            check_facets(&normalised, &st.facets, st.base)
         }
         Variety::List(item) => check_list(value, item, &st.facets),
         Variety::Union(members) => check_union(value, members, &st.facets),
@@ -376,6 +385,38 @@ fn check_union(
     check_facets(value, facets, BuiltIn::String)
 }
 
+/// Significant total and fraction digit counts of a decimal value.
+///
+/// Both are properties of the value, not the lexical form: leading
+/// zeros in the whole part and trailing zeros in the fraction are not
+/// significant, so `01.20` is two and one.
+fn digit_counts(value: &str) -> (usize, usize) {
+    let v = value.trim();
+    let body = v.strip_prefix(['+', '-']).unwrap_or(v);
+    let (whole, fraction) = body.split_once('.').unwrap_or((body, ""));
+    let whole = whole.trim_start_matches('0');
+    let fraction = fraction.trim_end_matches('0');
+    // A value of zero has one significant digit, not none.
+    let whole_len = whole.len();
+    let total = if whole_len + fraction.len() == 0 {
+        1
+    } else {
+        whole_len + fraction.len()
+    };
+    (total, fraction.len())
+}
+
+/// Apply an explicit `xs:whiteSpace` facet.
+fn apply_white_space(value: &str, rule: WhiteSpace) -> String {
+    match rule {
+        WhiteSpace::Preserve => value.to_owned(),
+        WhiteSpace::Replace => value.replace(['\t', '\n', '\r'], " "),
+        WhiteSpace::Collapse => {
+            value.split_whitespace().collect::<Vec<_>>().join(" ")
+        }
+    }
+}
+
 fn check_builtin(value: &str, base: BuiltIn) -> Result<(), String> {
     if base.accepts(value) {
         Ok(())
@@ -444,6 +485,27 @@ fn check_facets(
     }
 
     // Numeric bounds only mean something for numeric bases.
+    // Digit counts are defined on the *value*, so a sign, leading
+    // zeros and a trailing zero fraction do not count. `01.20` has two
+    // total digits and one fraction digit, not four and two.
+    if facets.total_digits.is_some() || facets.fraction_digits.is_some() {
+        let (total, fraction) = digit_counts(value);
+        if let Some(max) = facets.total_digits {
+            if total > max {
+                return Err(format!(
+                    "{value} has {total} significant digits, more than {max}"
+                ));
+            }
+        }
+        if let Some(max) = facets.fraction_digits {
+            if fraction > max {
+                return Err(format!(
+                    "{value} has {fraction} fraction digits, more than {max}"
+                ));
+            }
+        }
+    }
+
     if base.is_numeric() {
         if let Ok(n) = value.trim().parse::<f64>() {
             if let Some(b) = facets.min_inclusive {

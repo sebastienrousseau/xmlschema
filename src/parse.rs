@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use oxml::{Document, NodeId};
 
+use crate::datatype::WhiteSpace;
 use crate::model::{
     AttributeDecl, BuiltIn, Content, Facets, Occurs, Particle, Schema,
     SimpleType, Variety,
@@ -133,7 +134,7 @@ fn parse_element(
     } else if let Some(ct) = first_child_named(doc, id, "complexType") {
         parse_complex_type(doc, ct, schema)?
     } else if let Some(st) = first_child_named(doc, id, "simpleType") {
-        Content::Simple(parse_simple_type(doc, st, schema))
+        Content::Simple(Box::new(parse_simple_type(doc, st, schema)))
     } else {
         Content::Any
     };
@@ -156,10 +157,11 @@ fn parse_element(
 fn resolve_named_type(name: &str, schema: &Schema) -> Content {
     let local = name.rsplit(':').next().unwrap_or(name);
     if let Some(st) = schema.named_simple_types.get(local) {
-        return Content::Simple(st.clone());
+        return Content::Simple(Box::new(st.clone()));
     }
-    BuiltIn::from_name(name)
-        .map_or(Content::Any, |b| Content::Simple(SimpleType::atomic(b)))
+    BuiltIn::from_name(name).map_or(Content::Any, |b| {
+        Content::Simple(Box::new(SimpleType::atomic(b)))
+    })
 }
 
 fn parse_complex_type(
@@ -223,7 +225,7 @@ fn parse_attributes(
         let required = doc.attribute(attr, "use") == Some("required");
         let simple_type = if let Some(t) = doc.attribute(attr, "type") {
             match resolve_named_type(t, schema) {
-                Content::Simple(st) => st,
+                Content::Simple(st) => *st,
                 _ => SimpleType::atomic(BuiltIn::String),
             }
         } else if let Some(st) = first_child_named(doc, attr, "simpleType") {
@@ -297,6 +299,16 @@ fn parse_simple_type(
             "maxInclusive" => facets.max_inclusive = value.parse().ok(),
             "minExclusive" => facets.min_exclusive = value.parse().ok(),
             "maxExclusive" => facets.max_exclusive = value.parse().ok(),
+            "totalDigits" => facets.total_digits = value.parse().ok(),
+            "fractionDigits" => facets.fraction_digits = value.parse().ok(),
+            "whiteSpace" => {
+                facets.white_space = match value {
+                    "preserve" => Some(WhiteSpace::Preserve),
+                    "replace" => Some(WhiteSpace::Replace),
+                    "collapse" => Some(WhiteSpace::Collapse),
+                    _ => None,
+                };
+            }
             _ => {}
         }
     }
