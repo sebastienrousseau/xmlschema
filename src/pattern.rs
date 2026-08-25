@@ -26,10 +26,18 @@ enum Node {
     Literal(char),
     /// `.` — any character.
     Any,
-    /// A character class, with a negation flag.
+    /// A character class, with a negation flag and an optional
+    /// subtracted class.
+    ///
+    /// XSD writes `[A-[B]]` for "in A but not in B", which no other
+    /// regex dialect has. `[\i-[:]]` is how the specification spells
+    /// an `NCName` start character -- a name start that is not a
+    /// colon -- so it is not exotic: it is how the built-in name
+    /// types are defined.
     Class {
         negated: bool,
         items: Vec<ClassItem>,
+        subtract: Option<Box<Node>>,
     },
     /// A repeated node.
     Repeat {
@@ -298,6 +306,7 @@ impl Parser<'_> {
                     return Ok(Node::Class {
                         negated: false,
                         items: vec![self.parse_category(c == 'P')?],
+                        subtract: None,
                     });
                 }
                 Ok(escape_node(c))
@@ -383,19 +392,40 @@ impl Parser<'_> {
                 self.pos += 1;
                 break;
             }
+            // `-[` opens a subtraction. Checked here rather than after
+            // reading an item, because the hyphen may follow a
+            // character, an escape *or* a range -- `[a-z-[aeiou]]` is
+            // the range case, and it was the one being missed.
+            if c == '-' && self.chars.get(self.pos + 1) == Some(&'[') {
+                let subtract = self.parse_subtraction()?;
+                return Ok(Node::Class {
+                    negated,
+                    items,
+                    subtract: Some(subtract),
+                });
+            }
             self.pos += 1;
             if c == '\\' {
                 let e = self.peek().ok_or_else(|| PatternError {
                     message: "trailing backslash in class".to_owned(),
                 })?;
                 self.pos += 1;
-                items.push(escape_item(e));
+                if e == 'p' || e == 'P' {
+                    items.push(self.parse_category(e == 'P')?);
+                } else {
+                    items.push(escape_item(e));
+                }
                 continue;
             }
             // A `-` between two characters is a range; anywhere else
-            // it is a literal hyphen.
+            // it is a literal hyphen. `-[` is neither: it opens a
+            // subtraction, and letting the range take it made
+            // `[a-[b]` a range from `a` to `[`.
             if self.peek() == Some('-')
-                && self.chars.get(self.pos + 1).is_some_and(|n| *n != ']')
+                && self
+                    .chars
+                    .get(self.pos + 1)
+                    .is_some_and(|n| *n != ']' && *n != '[')
             {
                 self.pos += 1;
                 let hi = self.peek().ok_or_else(|| PatternError {
@@ -407,7 +437,24 @@ impl Parser<'_> {
                 items.push(ClassItem::Char(c));
             }
         }
-        Ok(Node::Class { negated, items })
+        Ok(Node::Class {
+            negated,
+            items,
+            subtract: None,
+        })
+    }
+
+    /// `-[...]]` — the subtracted class and the outer closing bracket.
+    fn parse_subtraction(&mut self) -> Result<Box<Node>, PatternError> {
+        self.pos += 2; // `-[`
+        let inner = self.parse_class()?;
+        if self.peek() != Some(']') {
+            return Err(PatternError {
+                message: "unterminated class subtraction".to_owned(),
+            });
+        }
+        self.pos += 1;
+        Ok(Box::new(inner))
     }
 
     fn peek(&self) -> Option<char> {
@@ -421,6 +468,7 @@ fn escape_node(c: char) -> Node {
             Node::Class {
                 negated: false,
                 items: vec![escape_item(c)],
+                subtract: None,
             }
         }
         'n' => Node::Literal('\n'),
@@ -513,11 +561,25 @@ fn match_node(
             input.get(pos).is_some_and(|x| x == c) && k(pos + 1)
         }
         Node::Any => pos < input.len() && k(pos + 1),
-        Node::Class { negated, items } => {
+        Node::Class {
+            negated,
+            items,
+            subtract,
+        } => {
             let Some(&c) = input.get(pos) else {
                 return false;
             };
-            let hit = items.iter().any(|i| item_matches(i, c));
+            let mut hit = items.iter().any(|i| item_matches(i, c));
+            // Subtraction applies to the group *before* negation, so
+            // `[^a-[b]]` is "not (a except b)" rather than "(not a)
+            // except b".
+            if hit {
+                if let Some(inner) = subtract {
+                    if match_node(inner, input, pos, &mut |_| true) {
+                        hit = false;
+                    }
+                }
+            }
             (hit != *negated) && k(pos + 1)
         }
         Node::Sequence(items) => match_sequence(items, input, pos, k),

@@ -398,3 +398,36 @@ fn a_malformed_quantifier_bound_is_an_error() {
         assert!(Pattern::compile(bad).is_err(), "`{bad}`");
     }
 }
+
+/// XSD writes `[A-[B]]` for "in A but not in B".
+///
+/// No other regex dialect has it, and the specification uses it to
+/// define its own name types: `[\i-[:]]` is a name start that is not a
+/// colon, which is exactly an `NCName` start.
+#[test]
+fn a_character_class_may_subtract_another() {
+    let ncname = Pattern::compile(r"[\i-[:]][\c-[:]]*").expect("compiles");
+    assert!(ncname.matches("abc"));
+    assert!(ncname.matches("_a-b.c"));
+    assert!(!ncname.matches("a:b"), "a colon is subtracted out");
+    assert!(!ncname.matches(":a"), "including at the start");
+    assert!(!ncname.matches("1a"), "still a name start");
+
+    // Subtracting from a plain range.
+    let consonant = Pattern::compile("[a-z-[aeiou]]+").expect("compiles");
+    assert!(consonant.matches("bcd"));
+    assert!(!consonant.matches("abc"), "a is subtracted");
+
+    // Subtraction binds before negation.
+    let negated = Pattern::compile("[^a-z-[aeiou]]+").expect("compiles");
+    assert!(negated.matches("aei"), "vowels are outside the group");
+    assert!(!negated.matches("bcd"));
+
+    // A quantifier applies to the whole subtracted class.
+    let three = Pattern::compile("[a-z-[aeiou]]{3}").expect("compiles");
+    assert!(three.matches("bcd"));
+    assert!(!three.matches("bc"));
+
+    // And a malformed one is an error rather than a guess.
+    assert!(Pattern::compile("[a-[b]").is_err(), "unterminated");
+}

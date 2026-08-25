@@ -95,6 +95,34 @@ fn main() -> Result<(), String> {
         println!("  {n:>6}  {cause}");
     }
 
+    // The shape of a message says what kind of thing went wrong; an
+    // example says what actually did. Both are needed to fix one.
+    if let Some((top, _)) = ranked.first() {
+        println!("\nexamples of the most common, in full:");
+        let mut shown = 0;
+        for r in &rejected {
+            let Some(detail) = r.detail.as_deref() else {
+                continue;
+            };
+            let key: String = detail
+                .split(|c: char| c == '`' || c == '\'')
+                .step_by(2)
+                .collect::<Vec<_>>()
+                .join("_")
+                .chars()
+                .take(72)
+                .collect();
+            if key != *top {
+                continue;
+            }
+            println!("  {}  {detail}", r.id);
+            shown += 1;
+            if shown == 12 {
+                break;
+            }
+        }
+    }
+
     let mut families: BTreeMap<String, usize> = BTreeMap::new();
     for r in &accepted {
         // The suite names a group by feature and number, so the
