@@ -421,7 +421,10 @@ fn an_element_restricting_a_group_is_decided_by_the_compositor() {
         1,
         Some(1),
     );
-    assert!(ok(&element("a", 1, Some(1)), &choice), "one branch is enough");
+    assert!(
+        ok(&element("a", 1, Some(1)), &choice),
+        "one branch is enough"
+    );
     assert!(!ok(&element("z", 1, Some(1)), &choice), "z is no branch");
 
     // A sequence whose other particles are optional.

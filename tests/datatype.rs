@@ -436,8 +436,14 @@ fn the_list_types_require_every_item_to_be_valid() {
 /// nothing to change.
 #[test]
 fn normalising_an_already_normal_value_changes_nothing() {
-    assert_eq!(ty("normalizedString").normalise("no tabs here"), "no tabs here");
-    assert_eq!(ty("token").normalise("single spaces only"), "single spaces only");
+    assert_eq!(
+        ty("normalizedString").normalise("no tabs here"),
+        "no tabs here"
+    );
+    assert_eq!(
+        ty("token").normalise("single spaces only"),
+        "single spaces only"
+    );
     assert_eq!(ty("string").normalise("\t kept \t"), "\t kept \t");
     // And when there *is* something to change.
     assert_eq!(ty("normalizedString").normalise("a\tb"), "a b");
@@ -494,7 +500,10 @@ fn the_name_productions_reach_beyond_ascii() {
     assert!(ty("NCName").accepts("Ünïcödé"));
     assert!(ty("NCName").accepts("Ωμέγα"));
     assert!(ty("NCName").accepts("日本語"));
-    assert!(ty("Name").accepts("_a\u{0300}"), "a combining mark may follow");
+    assert!(
+        ty("Name").accepts("_a\u{0300}"),
+        "a combining mark may follow"
+    );
     assert!(!ty("Name").accepts("\u{0300}a"), "but may not lead");
     assert!(!ty("NCName").accepts("a b"));
 }
