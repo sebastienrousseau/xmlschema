@@ -110,3 +110,85 @@ fn a_slice_of_pairs_is_a_source() {
     assert_eq!(parts.fetch("b.xsd"), Some("<b/>"));
     assert_eq!(parts.fetch("missing.xsd"), None);
 }
+
+/// A referenced document contributes complex types as well as simple
+/// ones, and elements.
+#[test]
+fn every_kind_of_declaration_is_contributed() {
+    let common = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:complexType name="pair">
+        <xs:sequence>
+          <xs:element name="a" type="xs:integer"/>
+          <xs:element name="b" type="xs:integer"/>
+        </xs:sequence>
+      </xs:complexType>
+      <xs:element name="shared" type="xs:integer"/>
+    </xs:schema>"#;
+    let main = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:include schemaLocation="common.xsd"/>
+      <xs:element name="r" type="pair"/>
+    </xs:schema>"#;
+    let parts: &[(&str, &str)] = &[("common.xsd", common)];
+    let schema = parse_schema_with(main, &parts).expect("schema parses");
+
+    // The included complex type is applied.
+    let ok = oxml::parse("<r><a>1</a><b>2</b></r>").expect("well-formed");
+    assert!(validate(&ok, &schema).is_valid());
+    let bad = oxml::parse("<r><a>x</a><b>2</b></r>").expect("well-formed");
+    assert!(!validate(&bad, &schema).is_valid());
+
+    // And the included element declaration is available.
+    assert!(schema.element("shared").is_some());
+}
+
+/// A local declaration wins over one of the same name from elsewhere.
+#[test]
+fn a_local_declaration_takes_precedence() {
+    let common = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:simpleType name="code">
+        <xs:restriction base="xs:string"><xs:maxLength value="1"/></xs:restriction>
+      </xs:simpleType>
+    </xs:schema>"#;
+    let main = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:include schemaLocation="common.xsd"/>
+      <xs:simpleType name="code">
+        <xs:restriction base="xs:string"><xs:maxLength value="8"/></xs:restriction>
+      </xs:simpleType>
+      <xs:element name="r" type="code"/>
+    </xs:schema>"#;
+    let parts: &[(&str, &str)] = &[("common.xsd", common)];
+    let schema = parse_schema_with(main, &parts).expect("schema parses");
+    // The local `code` allows eight characters, the included one only
+    // a single character.
+    let doc = oxml::parse("<r>abcdefg</r>").expect("well-formed");
+    assert!(validate(&doc, &schema).is_valid(), "the local type wins");
+}
+
+/// `xs:import` is followed the same way `xs:include` is.
+#[test]
+fn import_is_resolved_as_include_is() {
+    let other = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:simpleType name="code">
+        <xs:restriction base="xs:string"><xs:maxLength value="2"/></xs:restriction>
+      </xs:simpleType>
+    </xs:schema>"#;
+    let main = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:import namespace="urn:other" schemaLocation="other.xsd"/>
+      <xs:element name="r" type="code"/>
+    </xs:schema>"#;
+    let parts: &[(&str, &str)] = &[("other.xsd", other)];
+    let schema = parse_schema_with(main, &parts).expect("schema parses");
+    let long = oxml::parse("<r>abc</r>").expect("well-formed");
+    assert!(!validate(&long, &schema).is_valid());
+}
+
+/// A reference with no `schemaLocation` names nothing to fetch.
+#[test]
+fn a_reference_without_a_location_is_skipped() {
+    let main = r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+      <xs:import namespace="urn:other"/>
+      <xs:element name="r" type="xs:string"/>
+    </xs:schema>"#;
+    let parts: &[(&str, &str)] = &[];
+    assert!(parse_schema_with(main, &parts).is_ok());
+}
