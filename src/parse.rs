@@ -10,8 +10,9 @@ use oxml::{Document, NodeId};
 
 use crate::datatype::WhiteSpace;
 use crate::model::{
-    AttributeDecl, BuiltIn, Content, Facets, NamespaceConstraint, Occurs,
-    Particle, ProcessContents, Schema, SimpleType, Variety, Wildcard,
+    AttributeDecl, BuiltIn, Content, Facets, Identity, IdentityKind,
+    NamespaceConstraint, Occurs, Particle, ProcessContents, Schema, SimpleType,
+    Variety, Wildcard,
 };
 
 /// Why a schema could not be read.
@@ -169,6 +170,7 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     })?;
     let root = schema_root(&doc)?;
     check_structure(&doc)?;
+    check_ids(&doc)?;
 
     let tops = index_top_level(&doc, root);
     check_derivation(&doc, &tops)?;
@@ -488,6 +490,34 @@ fn check_derivation(doc: &Document, tops: &Tops) -> Result<(), SchemaError> {
     Ok(())
 }
 
+/// The `id` attribute on a schema element is an `xs:ID`.
+///
+/// That means two things, and only the second was checked: the value
+/// must *be* an ID -- an `NCName`, so never empty -- and no two may
+/// share one. It is the schema's own use of a type this crate
+/// validates documents against, so failing to apply it here while
+/// applying it there is the kind of inconsistency a suite finds.
+fn check_ids(doc: &Document) -> Result<(), SchemaError> {
+    let id_type = crate::datatype::Datatype::from_name("ID");
+    let mut seen: Vec<&str> = Vec::new();
+    for node in doc.descendants() {
+        let Some(id) = doc.attribute(node, "id") else {
+            continue;
+        };
+        if !id_type.is_some_and(|t| t.accepts(id)) {
+            return err(format!("`id=\"{id}\"` is not a valid xs:ID"));
+        }
+        if seen.contains(&id) {
+            return err(format!(
+                "`id=\"{id}\"` appears twice; the id attribute is an \
+                 xs:ID and must be unique"
+            ));
+        }
+        seen.push(id);
+    }
+    Ok(())
+}
+
 /// A facet's value must belong to the type it narrows.
 ///
 /// `<xs:enumeration value="CA"/>` on a restriction of `xs:integer`
@@ -724,7 +754,42 @@ fn parse_element(ctx: &Ctx, id: NodeId) -> Result<Particle, SchemaError> {
         nillable: doc.attribute(id, "nillable") == Some("true"),
         wildcard: None,
         any_attribute: any_attribute_of(ctx, id),
+        identities: parse_identities(doc, id),
     })
+}
+
+/// `xs:unique`, `xs:key` and `xs:keyref` declared on an element.
+fn parse_identities(doc: &Document, id: NodeId) -> Vec<Identity> {
+    let mut out = Vec::new();
+    for &child in doc.children(id) {
+        let kind = match local_name(doc, child) {
+            Some("unique") => IdentityKind::Unique,
+            Some("key") => IdentityKind::Key,
+            Some("keyref") => IdentityKind::KeyRef,
+            _ => continue,
+        };
+        let Some(selector) = first_child_named(doc, child, "selector")
+            .and_then(|s| doc.attribute(s, "xpath"))
+        else {
+            continue;
+        };
+        let fields: Vec<String> = children_named(doc, child, "field")
+            .filter_map(|f| doc.attribute(f, "xpath").map(str::to_owned))
+            .collect();
+        if fields.is_empty() {
+            continue;
+        }
+        out.push(Identity {
+            kind,
+            name: doc.attribute(child, "name").unwrap_or_default().to_owned(),
+            selector: selector.to_owned(),
+            fields,
+            refer: doc
+                .attribute(child, "refer")
+                .map(|r| r.rsplit(':').next().unwrap_or(r).to_owned()),
+        });
+    }
+    out
 }
 
 /// The `xs:anyAttribute` governing an element, from its inline
@@ -768,6 +833,7 @@ fn unenforceable_element(name: &str, occurs: Occurs) -> Particle {
         nillable: true,
         wildcard: None,
         any_attribute: None,
+        identities: Vec::new(),
     }
 }
 
@@ -1022,6 +1088,7 @@ fn parse_particles(
                 nillable: false,
                 wildcard: Some(parse_wildcard(ctx, child)),
                 any_attribute: None,
+                identities: Vec::new(),
             }),
             // A nested model group or a group reference contributes its
             // own particles. Flattening loses the grouping, which

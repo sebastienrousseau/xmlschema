@@ -52,9 +52,9 @@ fn an_unhandled_element_is_reported() {
             r#"<xs:element name="r"><xs:complexType><xs:sequence>
                  <xs:element name="a" type="xs:string"/>
                </xs:sequence></xs:complexType>
-               <xs:unique name="u"><xs:selector xpath="a"/><xs:field xpath="."/></xs:unique>
+               <xs:redefine schemaLocation="a.xsd"/>
              </xs:element>"#,
-            "xs:unique",
+            "xs:redefine",
         ),
     ] {
         let found = gaps(body);

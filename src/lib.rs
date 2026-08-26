@@ -103,8 +103,9 @@ pub mod support;
 pub mod validate;
 
 pub use model::{
-    AttributeDecl, BuiltIn, Content, Facets, NamespaceConstraint, Occurs,
-    Particle, ProcessContents, Schema, SimpleType, Variety, Wildcard,
+    AttributeDecl, BuiltIn, Content, Facets, Identity, IdentityKind,
+    NamespaceConstraint, Occurs, Particle, ProcessContents, Schema, SimpleType,
+    Variety, Wildcard,
 };
 pub use parse::{SchemaError, parse_schema};
 pub use pattern::{Pattern, PatternError};
