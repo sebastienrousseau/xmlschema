@@ -160,11 +160,55 @@ fn err<T>(message: impl Into<String>) -> Result<T, SchemaError> {
 
 /// Parse an XSD document into a [`Schema`].
 ///
+/// Resolves nothing: an `xs:import` or `xs:include` names a location,
+/// and this crate performs no I/O. Use [`parse_schema_with`] to supply
+/// the documents yourself.
+///
 /// # Errors
 ///
-/// Returns [`SchemaError`] if the document is not a schema, or uses a
-/// construct this implementation does not support.
+/// Returns [`SchemaError`] if the document is not a schema, breaks the
+/// structural rules XSD imposes on schemas, or uses a construct this
+/// implementation does not support.
 pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
+    parse_schema_with(xsd, &crate::resolve::NoSchemas)
+}
+
+/// Parse an XSD document, resolving `xs:import` and `xs:include`
+/// against a caller-supplied source.
+///
+/// An imported or included document contributes its declarations to
+/// the schema being built. A location the source does not supply is
+/// not an error -- it is left unresolved and reported by
+/// [`crate::support::unsupported`] rather than silently ignored.
+///
+/// # Errors
+///
+/// As [`parse_schema`], and additionally if a supplied document is
+/// itself not a valid schema.
+pub fn parse_schema_with(
+    xsd: &str,
+    source: &dyn crate::resolve::SchemaSource,
+) -> Result<Schema, SchemaError> {
+    parse_schema_at(xsd, source, 0, &mut Vec::new())
+}
+
+/// Parse a schema, remembering which locations have been visited.
+///
+/// A depth bound alone is not enough. It has to survive the call --
+/// starting it at zero for each referenced document let two schemas
+/// including one another recurse until the stack ran out -- but even
+/// then, a schema importing two others, each importing two more, is
+/// exponential in the depth rather than linear in the documents.
+///
+/// So the locations already seen are carried too, and each document
+/// is parsed once. That bounds the work by the number of documents,
+/// and makes a cycle terminate for the same reason.
+fn parse_schema_at(
+    xsd: &str,
+    source: &dyn crate::resolve::SchemaSource,
+    depth: usize,
+    visited: &mut Vec<String>,
+) -> Result<Schema, SchemaError> {
     let doc = oxml::parse(xsd).map_err(|e| SchemaError {
         message: format!("the schema is not well-formed XML: {e}"),
     })?;
@@ -174,6 +218,11 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
 
     let tops = index_top_level(&doc, root);
     check_derivation(&doc, &tops)?;
+
+    // An imported or included document contributes its top-level
+    // declarations as though they were written here. Parsed up front,
+    // so a reference to one resolves like any other.
+    let referenced = load_referenced(&doc, root, source, depth, visited)?;
 
     let session = Session {
         doc: &doc,
@@ -190,6 +239,27 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
         named_simple_types: BTreeMap::new(),
         named_complex_types: BTreeMap::new(),
     };
+
+    // Referenced declarations go in *before* the passes, because a
+    // local `type="code"` naming an included type can only resolve if
+    // the type is already present. Merged after, they arrived too
+    // late and every such element was left unconstrained.
+    //
+    // They fill gaps rather than replace: a name declared here wins
+    // over the same name imported, which is what `include` means and
+    // close enough to what `import` does for a processor that does not
+    // track a namespace per declaration.
+    for other in referenced {
+        for (name, ty) in other.named_simple_types {
+            let _ = schema.named_simple_types.entry(name).or_insert(ty);
+        }
+        for (name, ty) in other.named_complex_types {
+            let _ = schema.named_complex_types.entry(name).or_insert(ty);
+        }
+        for (name, particle) in other.elements {
+            let _ = schema.elements.entry(name).or_insert(particle);
+        }
+    }
 
     // Three passes, because a declaration may reference a type
     // declared after it and resolving forward references on demand
@@ -216,6 +286,48 @@ pub fn parse_schema(xsd: &str) -> Result<Schema, SchemaError> {
     }
 
     Ok(schema)
+}
+
+/// Every schema document reachable through `xs:import` and
+/// `xs:include`, parsed.
+///
+/// Depth-bounded because a pair of schemas may reference one another,
+/// and a schema is untrusted input. A location the source does not
+/// supply is skipped rather than failed:
+/// [`crate::support::unsupported`] reports it.
+fn load_referenced(
+    doc: &Document,
+    root: NodeId,
+    source: &dyn crate::resolve::SchemaSource,
+    depth: usize,
+    visited: &mut Vec<String>,
+) -> Result<Vec<Schema>, SchemaError> {
+    if depth > MAX_REFERENCE_DEPTH {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for &child in doc.children(root) {
+        if !matches!(local_name(doc, child), Some("import" | "include")) {
+            continue;
+        }
+        let Some(location) = doc.attribute(child, "schemaLocation") else {
+            continue;
+        };
+        // Each location once. Without this a schema importing two
+        // others, each importing two more, is parsed exponentially in
+        // the depth.
+        if visited.iter().any(|seen| seen == location) {
+            continue;
+        }
+        visited.push(location.to_owned());
+        let Some(text) = source.fetch(location) else {
+            continue;
+        };
+        // Parsed in full, so a document that is not a schema is
+        // reported rather than half-applied.
+        out.push(parse_schema_at(text, source, depth + 1, visited)?);
+    }
+    Ok(out)
 }
 
 /// The `xs:schema` element, or why the document is not a schema.

@@ -99,6 +99,7 @@ pub mod derive;
 pub mod model;
 pub mod parse;
 pub mod pattern;
+pub mod resolve;
 pub mod support;
 pub mod validate;
 
@@ -107,6 +108,7 @@ pub use model::{
     NamespaceConstraint, Occurs, Particle, ProcessContents, Schema, SimpleType,
     Variety, Wildcard,
 };
-pub use parse::{SchemaError, parse_schema};
+pub use parse::{SchemaError, parse_schema, parse_schema_with};
 pub use pattern::{Pattern, PatternError};
+pub use resolve::{NoSchemas, SchemaSource};
 pub use validate::{Report, Violation, validate};

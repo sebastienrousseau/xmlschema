@@ -65,6 +65,8 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "keyref",
     "selector",
     "field",
+    "import",
+    "include",
     "any",
     "anyAttribute",
     // Facets, handled below by name.
