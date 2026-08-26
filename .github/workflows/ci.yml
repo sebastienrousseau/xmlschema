@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+  # No `branches:` filter on `pull_request`. With one, a pull request
+  # whose base is another branch -- a stacked PR, the natural shape for
+  # a change that builds on an unmerged one -- matches nothing and gets
+  # **no checks at all**. Not a red build: an empty one, which reads as
+  # "nothing to report" rather than "nothing ran".
+  #
+  # `push` stays pinned to `main` so a branch does not build twice, once
+  # for the push and once for its pull request.
   pull_request:
-    branches: [main]
+    branches: ['**']
 
 permissions:
   contents: read
