@@ -3,7 +3,7 @@ members = ["conformance"]
 
 [package]
 name = "xmlschema"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 rust-version = "1.86.0"
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,7 @@ include = [
 ]
 
 [dependencies]
-oxml = { version = "0.0.5", default-features = false, features = ["std"] }
+oxml = { version = "0.0.6", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
