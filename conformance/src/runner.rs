@@ -17,6 +17,94 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use crate::catalog::{Case, Expected};
 use crate::outcome::{Counts, Outcome};
 
+/// The suite's own files, as a schema source.
+///
+/// A `schemaLocation` in the suite is a path relative to the schema
+/// that names it, and the files are on disk beside it. Supplying them
+/// is the harness's job, not the library's: `xmlschema` performs no
+/// I/O, and a conformance runner that could not resolve an import
+/// would report every schema using one as unenforceable -- measuring
+/// the harness's limits rather than the crate's.
+struct SuiteFiles {
+    /// Documents already read, by resolved path.
+    loaded: std::collections::BTreeMap<String, String>,
+}
+
+impl SuiteFiles {
+    /// Read every document reachable from `schema`, following
+    /// `schemaLocation` relative to whichever file names it.
+    fn gather(schema: &std::path::Path) -> Self {
+        let mut loaded = std::collections::BTreeMap::new();
+        let mut queue = vec![schema.to_path_buf()];
+        // Bounded: a pair of schemas may reference one another, and
+        // the suite contains some that do.
+        for _ in 0..64 {
+            let Some(path) = queue.pop() else {
+                break;
+            };
+            let key = path.to_string_lossy().into_owned();
+            if loaded.contains_key(&key) {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            for location in schema_locations(&text) {
+                let mut next = path.clone();
+                let _ = next.pop();
+                for part in location.split('/') {
+                    match part {
+                        "." | "" => {}
+                        ".." => {
+                            let _ = next.pop();
+                        }
+                        other => next.push(other),
+                    }
+                }
+                queue.push(next);
+            }
+            let _ = loaded.insert(key, text);
+        }
+        Self { loaded }
+    }
+}
+
+/// Every `schemaLocation` in a schema document, read textually.
+///
+/// Textually because the document may not parse -- the suite is full
+/// of schemas that do not -- and a source that only worked for valid
+/// input would resolve nothing for exactly the tests that need it.
+fn schema_locations(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("schemaLocation") {
+        rest = &rest[at + "schemaLocation".len()..];
+        let Some(quote) = rest.find(['"', '\'']) else {
+            break;
+        };
+        let delimiter = rest.as_bytes()[quote] as char;
+        rest = &rest[quote + 1..];
+        let Some(end) = rest.find(delimiter) else {
+            break;
+        };
+        out.push(rest[..end].to_owned());
+        rest = &rest[end + 1..];
+    }
+    out
+}
+
+impl xmlschema::SchemaSource for SuiteFiles {
+    fn fetch(&self, location: &str) -> Option<&str> {
+        // The location is relative to the file that named it, and the
+        // gather pass resolved each one already -- so match on the
+        // tail rather than re-resolving without knowing the base.
+        self.loaded
+            .iter()
+            .find(|(path, _)| path.ends_with(location.trim_start_matches("./")))
+            .map(|(_, text)| text.as_str())
+    }
+}
+
 /// One test's result, with enough context to report it.
 #[derive(Debug, Clone)]
 pub struct Record {
@@ -169,7 +257,16 @@ fn decide(case: &Case) -> Decided {
         .first()
         .map(|u| format!("{}: {}", u.construct, u.effect));
 
-    let parsed = xmlschema::parse_schema(&schema_src);
+    // Gathered only when the schema actually references something.
+    // Reading the neighbourhood of every schema in a 39,420-test
+    // suite -- almost none of which import anything -- turned a
+    // seconds-long run into one that did not finish.
+    let parsed = if schema_src.contains("schemaLocation") {
+        let files = SuiteFiles::gather(schema_path);
+        xmlschema::parse_schema_with(&schema_src, &files)
+    } else {
+        xmlschema::parse_schema(&schema_src)
+    };
 
     // A schema test asks whether the schema itself is valid.
     let Some(instance_path) = case.instance.as_ref() else {

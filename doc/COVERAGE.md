@@ -6,9 +6,15 @@
 
 - **Elements** with `type`, inline `complexType`, and cardinality via
   `minOccurs` / `maxOccurs` including `unbounded`
-- **Content models**: `xs:sequence`, `xs:choice`, nested
+- **Content models**: `xs:sequence`, `xs:choice`, `xs:all`, nested,
+  with `xs:group` and `xs:attributeGroup` references resolved
+- **Wildcards**: `xs:any` and `xs:anyAttribute`, by namespace and
+  `processContents`
+- **Derivation**: extension and restriction, including *Particle Valid
+  (Restriction)*
 - **Attributes**, including `use="required"` and `use="optional"`
-- **Simple types**: nine built-ins, and restriction with nine facets
+- **Simple types**: all 44 XSD built-ins, and restriction with 12
+  facets, plus `xs:list` and `xs:union`
 - **`xs:pattern`**, with its own engine — see [PATTERNS.md](PATTERNS.md)
 - **Reports** listing every violation with a positional path
 

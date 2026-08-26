@@ -60,6 +60,13 @@ const HANDLED_ELEMENTS: &[&str] = &[
     "group",
     "attributeGroup",
     "complexContent",
+    "unique",
+    "key",
+    "keyref",
+    "selector",
+    "field",
+    "import",
+    "include",
     "any",
     "anyAttribute",
     // Facets, handled below by name.

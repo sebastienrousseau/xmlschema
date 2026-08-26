@@ -481,3 +481,56 @@ fn a_range_bound_may_be_escaped() {
     // An escape with nothing after it is still an error.
     assert!(Pattern::compile(r"[a-\").is_err());
 }
+
+/// Every way a pattern can fail to compile, and none of them a guess.
+#[test]
+fn malformed_patterns_report_rather_than_guess() {
+    let cases: &[(&str, &str)] = &[
+        ("a{2,1", "unterminated bound"),
+        ("a{2,x}", "an upper bound that is not a number"),
+        ("(", "an unclosed group"),
+        ("(a|", "an alternation with nothing after the bar"),
+        ("[a-", "an unterminated range"),
+        ("[a-\\", "a trailing backslash in a range"),
+        ("[", "an unterminated class"),
+        ("[\\", "a trailing backslash in a class"),
+        ("\\", "a trailing backslash"),
+        ("*", "a quantifier with nothing to repeat"),
+    ];
+    for (pattern, why) in cases {
+        assert!(
+            Pattern::compile(pattern).is_err(),
+            "`{pattern}` is {why} and must not compile"
+        );
+    }
+}
+
+/// A category escape works inside a class as well as outside it.
+#[test]
+fn a_category_may_appear_inside_a_class() {
+    let p = Pattern::compile(r"[\p{Nd}abc]+").expect("compiles");
+    assert!(p.matches("123"));
+    assert!(p.matches("abc"));
+    assert!(p.matches("a1b2"));
+    assert!(!p.matches("xyz"));
+
+    // And a negated one.
+    let n = Pattern::compile(r"[\P{Nd}]+").expect("compiles");
+    assert!(n.matches("abc"));
+    assert!(!n.matches("123"));
+
+    // An unsupported category inside a class is still refused.
+    assert!(Pattern::compile(r"[\p{Lt}]").is_err());
+}
+
+/// The name productions cover more than ASCII.
+#[test]
+fn name_escapes_accept_non_ascii_names() {
+    let name = Pattern::compile(r"\i\c*").expect("compiles");
+    assert!(name.matches("Ünïcödé"), "Latin-1 supplement");
+    assert!(name.matches("Ωμέγα"), "Greek");
+    assert!(name.matches("日本語"), "CJK");
+    assert!(name.matches("_a\u{0300}"), "a combining mark is a NameChar");
+    // A combining mark may not *start* a name.
+    assert!(!name.matches("\u{0300}a"));
+}

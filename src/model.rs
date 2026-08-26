@@ -210,6 +210,39 @@ pub struct Particle {
     pub wildcard: Option<Wildcard>,
     /// `xs:anyAttribute` on this element's type, if it has one.
     pub any_attribute: Option<Wildcard>,
+    /// `xs:unique`, `xs:key` and `xs:keyref` declared on this element.
+    pub identities: Vec<Identity>,
+}
+
+/// Which kind of identity constraint a declaration is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityKind {
+    /// `xs:unique` — the field tuples must not repeat, where present.
+    Unique,
+    /// `xs:key` — as `unique`, and every selected node must have one.
+    Key,
+    /// `xs:keyref` — every tuple must appear among another
+    /// constraint's.
+    KeyRef,
+}
+
+/// An `xs:unique`, `xs:key` or `xs:keyref` declaration.
+///
+/// The selector and fields are `XPath` expressions over a restricted
+/// subset of the language. They are kept as written and compiled by
+/// `oxml`, whose engine is a superset of the subset XSD permits.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Identity {
+    /// Which kind it is.
+    pub kind: IdentityKind,
+    /// Its name, which a `keyref` refers to.
+    pub name: String,
+    /// The `xs:selector` expression, choosing the nodes constrained.
+    pub selector: String,
+    /// The `xs:field` expressions, forming a tuple per selected node.
+    pub fields: Vec<String>,
+    /// For a `keyref`, the name of the constraint it refers to.
+    pub refer: Option<String>,
 }
 
 /// An `xs:any` or `xs:anyAttribute` wildcard.

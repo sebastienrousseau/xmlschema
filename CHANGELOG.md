@@ -8,6 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.6] - 2026-08-26
+
+### Added
+
+- **A conformance measurement that means something.** The W3C XML
+  Schema Test Suite, 39,420 tests, pinned by SHA-256. `support::unsupported`
+  audits a schema against what this crate actually enforces, and a
+  test counts as a pass only when the schema is enforced in *full* --
+  a schema whose constraints were skipped accepts every document, so
+  agreeing with the suite proves nothing. On the first run 20,682
+  tests would otherwise have counted as passes with nothing checked.
+- **Every XSD 1.0 built-in datatype**, each with its own rule.
+  `xs:byte` accepted 999; the whole integer lattice was one unbounded
+  type; `xs:NCName`, `xs:ID` and `xs:language` were all `xs:string`;
+  and `xs:duration`, `xs:time` and the gregorian types did not resolve
+  at all.
+- **`xs:list` and `xs:union`.** Length facets count *items* on a list.
+- **`xs:any`, `xs:anyAttribute`, `xs:all`, `xs:group`,
+  `xs:attributeGroup`, `xs:complexContent`, `@ref`, `@fixed`,
+  `@nillable` and `use="prohibited"`.**
+- **`whiteSpace`, `totalDigits` and `fractionDigits`.**
+- **XSD's own structural rules**: annotation placement, mutually
+  exclusive children, Element Declarations Consistent, facet values
+  belonging to their base type, and duplicate attribute names.
+- **Particle Valid (Restriction)** -- the subsumption relation between
+  content models, in `derive`.
+- **Benchmarks**, in three groups. There were none, so no performance
+  claim about this crate could be checked.
+
+### Fixed
+
+- **Patterns were compiled once per value rather than once per
+  schema**, which cost more than matching did: `validate/faceted_1000`
+  886 us to 290 us.
+- **XSD's regex dialect**: `\i`, `\c`, `\p{...}`, and character class
+  subtraction `[A-[B]]` -- which the specification uses to define its
+  own name types, so no `NCName` pattern compiled.
+- **`\d` is `\p{Nd}`**, not `[0-9]`, and `\s` is four characters
+  rather than Unicode whitespace.
+- **Bounds apply to dates, times and durations.** Stored as `f64`,
+  every temporal bound was silently dropped.
+- **Decimals compare exactly**, not through an `f64` that cannot tell
+  `999999999999999998` from `999999999999999999`.
+- **A schema declaring no top-level element is valid** -- it exists to
+  be imported -- and an unresolvable `ref` is unenforceable rather
+  than invalid.
+- **A schema that inlines a type twice per level is refused** rather
+  than expanded: 24 levels is sixteen million particles from a few
+  kilobytes.
+
+### Changed
+
+- `Facets::pattern` holds a compiled `Pattern`; bounds are held
+  lexically; `Content::Simple` is boxed.
+
+  Measured against the suite: pass rate 71.7% to **95.6%**, coverage of
+  the suite 27.0% to **87.6%**, zero panics throughout.
+
 ## [0.0.5] - 2026-08-24
 
 ### Changed

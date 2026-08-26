@@ -410,3 +410,105 @@ fn the_effective_total_range_multiplies_through() {
     );
     assert_eq!(open.effective_total_range(), (1, None));
 }
+
+/// An element restricting a choice takes any branch; restricting a
+/// sequence requires the rest to be skippable.
+#[test]
+fn an_element_restricting_a_group_is_decided_by_the_compositor() {
+    let choice = group(
+        Compositor::Choice,
+        vec![element("a", 1, Some(1)), element("b", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(
+        ok(&element("a", 1, Some(1)), &choice),
+        "one branch is enough"
+    );
+    assert!(!ok(&element("z", 1, Some(1)), &choice), "z is no branch");
+
+    // A sequence whose other particles are optional.
+    let optional = group(
+        Compositor::Sequence,
+        vec![element("a", 1, Some(1)), element("b", 0, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(ok(&element("a", 1, Some(1)), &optional));
+
+    // And one whose others are not.
+    let required = group(
+        Compositor::Sequence,
+        vec![element("a", 1, Some(1)), element("b", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(!ok(&element("a", 1, Some(1)), &required));
+}
+
+/// A group of one, occurring once, restricting an element unwraps to
+/// that element; anything richer has no rule.
+#[test]
+fn a_wrapped_element_restricts_the_element_it_wraps() {
+    let base = element("a", 1, Some(1));
+    let wrapped = group(
+        Compositor::Sequence,
+        vec![element("a", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(ok(&wrapped, &base));
+
+    // Two particles is not a wrapper.
+    let two = group(
+        Compositor::Sequence,
+        vec![element("a", 1, Some(1)), element("b", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(!ok(&two, &base));
+}
+
+/// An unordered mapping uses each base particle at most once, and
+/// leaves nothing required behind.
+#[test]
+fn an_unordered_mapping_consumes_each_particle_once() {
+    let base = group(
+        Compositor::All,
+        vec![
+            element("a", 1, Some(1)),
+            element("b", 1, Some(1)),
+            element("c", 0, Some(1)),
+        ],
+        1,
+        Some(1),
+    );
+    // Both required particles present, in any order; `c` was optional.
+    let reordered = group(
+        Compositor::Sequence,
+        vec![element("b", 1, Some(1)), element("a", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(ok(&reordered, &base));
+
+    // `a` twice cannot map onto one `a`.
+    let doubled = group(
+        Compositor::Sequence,
+        vec![element("a", 1, Some(1)), element("a", 1, Some(1))],
+        1,
+        Some(1),
+    );
+    assert!(!ok(&doubled, &base), "each base particle is used once");
+}
+
+/// A wildcard restricting a wildcard of a different namespace form.
+#[test]
+fn namespace_subsetting_covers_the_special_forms() {
+    // `##other` against a list is left undecided, which means accepted.
+    assert!(namespace_subset("##other", "urn:a"));
+    assert!(namespace_subset("urn:a", "##other"));
+    // Identical constraints are trivially a subset.
+    assert!(namespace_subset("##other", "##other"));
+    assert!(namespace_subset("##any", "##any"));
+}

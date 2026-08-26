@@ -45,16 +45,15 @@ fn a_fully_supported_schema_reports_nothing() {
 #[test]
 fn an_unhandled_element_is_reported() {
     for (body, want) in [
-        (r#"<xs:import namespace="urn:x"/>"#, "xs:import"),
-        (r#"<xs:include schemaLocation="a.xsd"/>"#, "xs:include"),
+        (r#"<xs:redefine schemaLocation="a.xsd"/>"#, "xs:redefine"),
         (r#"<xs:notation name="n" public="p"/>"#, "xs:notation"),
         (
             r#"<xs:element name="r"><xs:complexType><xs:sequence>
                  <xs:element name="a" type="xs:string"/>
                </xs:sequence></xs:complexType>
-               <xs:unique name="u"><xs:selector xpath="a"/><xs:field xpath="."/></xs:unique>
+               <xs:redefine schemaLocation="a.xsd"/>
              </xs:element>"#,
-            "xs:unique",
+            "xs:redefine",
         ),
     ] {
         let found = gaps(body);
@@ -197,7 +196,7 @@ fn a_compilable_pattern_is_not_reported() {
 /// found — a bare construct name does not tell a reader what they lose.
 #[test]
 fn each_gap_explains_what_stops_being_checked() {
-    let doc = oxml::parse(&schema(r#"<xs:import namespace="urn:x"/>"#))
+    let doc = oxml::parse(&schema(r#"<xs:redefine schemaLocation="a.xsd"/>"#))
         .expect("well-formed");
     let found = unsupported(&doc);
     assert!(!found.is_empty());

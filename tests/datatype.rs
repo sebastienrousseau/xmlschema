@@ -431,3 +431,79 @@ fn the_list_types_require_every_item_to_be_valid() {
     assert!(ty("ENTITIES").accepts("one"));
     assert!(!ty("ENTITIES").accepts("1one"));
 }
+
+/// Whitespace processing returns the input untouched when there is
+/// nothing to change.
+#[test]
+fn normalising_an_already_normal_value_changes_nothing() {
+    assert_eq!(
+        ty("normalizedString").normalise("no tabs here"),
+        "no tabs here"
+    );
+    assert_eq!(
+        ty("token").normalise("single spaces only"),
+        "single spaces only"
+    );
+    assert_eq!(ty("string").normalise("\t kept \t"), "\t kept \t");
+    // And when there *is* something to change.
+    assert_eq!(ty("normalizedString").normalise("a\tb"), "a b");
+    assert_eq!(ty("token").normalise("  a   b  "), "a b");
+}
+
+#[test]
+fn every_built_in_list_names_its_item_type() {
+    assert_eq!(ty("NMTOKENS").item_type(), ty("NMTOKEN"));
+    assert_eq!(ty("IDREFS").item_type(), ty("IDREF"));
+    assert_eq!(ty("ENTITIES").item_type(), ty("ENTITY"));
+}
+
+/// Comparison falls back to a float where a decimal form does not
+/// apply, and refuses where no order exists.
+#[test]
+fn comparison_handles_the_forms_decimals_cannot() {
+    use std::cmp::Ordering;
+    let d = ty("double");
+    // Scientific notation has no decimal lexical form to compare.
+    assert_eq!(d.compare("1e3", "2e3"), Some(Ordering::Less));
+    assert_eq!(d.compare("1e3", "1000"), Some(Ordering::Equal));
+    // The specials.
+    assert_eq!(d.compare("INF", "1"), Some(Ordering::Greater));
+    assert_eq!(d.compare("-INF", "1"), Some(Ordering::Less));
+    assert_eq!(d.compare("NaN", "NaN"), None, "NaN orders with nothing");
+    assert_eq!(d.compare("1", "NaN"), None);
+}
+
+/// A `dateTime` orders across both halves, and a timezone does not
+/// change which value it is.
+#[test]
+fn temporal_keys_read_every_component() {
+    use std::cmp::Ordering;
+    let dt = ty("dateTime");
+    assert_eq!(
+        dt.compare("2001-01-01T00:00:00Z", "2001-01-01T00:00:01Z"),
+        Some(Ordering::Less)
+    );
+    let t = ty("time");
+    assert_eq!(t.compare("01:00:00", "02:00:00"), Some(Ordering::Less));
+    assert_eq!(t.compare("00:00:01", "00:00:00"), Some(Ordering::Greater));
+    let gmd = ty("gMonthDay");
+    assert_eq!(gmd.compare("--01-31", "--02-01"), Some(Ordering::Less));
+    let gd = ty("gDay");
+    assert_eq!(gd.compare("---01", "---02"), Some(Ordering::Less));
+    let gym = ty("gYearMonth");
+    assert_eq!(gym.compare("2001-12", "2002-01"), Some(Ordering::Less));
+}
+
+/// Names may be non-ASCII, and the productions say which characters.
+#[test]
+fn the_name_productions_reach_beyond_ascii() {
+    assert!(ty("NCName").accepts("Ünïcödé"));
+    assert!(ty("NCName").accepts("Ωμέγα"));
+    assert!(ty("NCName").accepts("日本語"));
+    assert!(
+        ty("Name").accepts("_a\u{0300}"),
+        "a combining mark may follow"
+    );
+    assert!(!ty("Name").accepts("\u{0300}a"), "but may not lead");
+    assert!(!ty("NCName").accepts("a b"));
+}

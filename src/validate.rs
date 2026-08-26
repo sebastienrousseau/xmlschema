@@ -6,9 +6,12 @@
 use oxml::{Document, NodeId, NodeKind};
 
 use crate::datatype::WhiteSpace;
+use oxml::XPath;
+use std::collections::BTreeMap;
+
 use crate::model::{
-    BuiltIn, Content, Facets, NamespaceConstraint, Particle, ProcessContents,
-    Schema, SimpleType, Variety,
+    BuiltIn, Content, Facets, IdentityKind, NamespaceConstraint, Particle,
+    ProcessContents, Schema, SimpleType, Variety,
 };
 
 /// One validation failure.
@@ -69,6 +72,15 @@ const XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
 struct Validator<'a> {
     doc: &'a Document,
     schema: &'a Schema,
+    /// Field tuples gathered per identity constraint name.
+    ///
+    /// A `keyref` must be checked against the constraint it refers to,
+    /// which may be declared on a different element and reached later
+    /// in the walk -- so tuples are collected as they are found and
+    /// the references checked once at the end.
+    identities: BTreeMap<String, Vec<Vec<String>>>,
+    /// Every `keyref` seen, with the tuples it must find.
+    references: Vec<(String, String, Vec<Vec<String>>, String)>,
     /// The schema's target namespace, which `##other` is defined
     /// against.
     target: Option<String>,
@@ -81,6 +93,8 @@ pub fn validate(doc: &Document, schema: &Schema) -> Report {
     let mut v = Validator {
         doc,
         schema,
+        identities: BTreeMap::new(),
+        references: Vec::new(),
         target: schema.target_namespace.clone(),
         report: Report::default(),
     };
@@ -116,12 +130,16 @@ pub fn validate(doc: &Document, schema: &Schema) -> Report {
     };
 
     v.check_element(root, decl, &format!("/{name}"));
+    v.check_references();
     v.report
 }
 
 impl Validator<'_> {
     fn check_element(&mut self, node: NodeId, decl: &Particle, path: &str) {
         self.check_attributes(node, decl, path);
+        if !decl.identities.is_empty() {
+            self.check_identities(node, decl, path);
+        }
 
         // `xsi:nil="true"` stands in for content, but only where the
         // declaration allows it. Where it does, the element must be
@@ -522,6 +540,132 @@ impl Validator<'_> {
                 );
             }
             None => {}
+        }
+    }
+
+    /// Evaluate the identity constraints declared on an element.
+    ///
+    /// The selector chooses the nodes constrained and each field
+    /// contributes one component of a tuple. `oxml`'s `XPath` engine
+    /// evaluates both: XSD permits a restricted subset of the
+    /// language, and a superset engine runs it unchanged.
+    fn check_identities(&mut self, node: NodeId, decl: &Particle, path: &str) {
+        for identity in &decl.identities {
+            let Ok(selector) = XPath::compile(&identity.selector) else {
+                // An expression this engine cannot compile constrains
+                // nothing; `support::unsupported` reports the schema
+                // rather than the document being blamed.
+                continue;
+            };
+            let selected = selector.evaluate_from(self.doc, node);
+            let Some(nodes) = selected.nodes() else {
+                continue;
+            };
+
+            let mut tuples: Vec<Vec<String>> = Vec::new();
+            let mut incomplete = false;
+            for &selected_node in nodes {
+                let mut tuple = Vec::with_capacity(identity.fields.len());
+                for field in &identity.fields {
+                    let Ok(expression) = XPath::compile(field) else {
+                        tuple.clear();
+                        break;
+                    };
+                    let value =
+                        expression.evaluate_from(self.doc, selected_node);
+                    // A field selecting nothing means the node has no
+                    // value for this component.
+                    if value.nodes().is_some_and(<[NodeId]>::is_empty) {
+                        incomplete = true;
+                        tuple.clear();
+                        break;
+                    }
+                    tuple.push(value.to_str(self.doc));
+                }
+                if tuple.len() == identity.fields.len() {
+                    tuples.push(tuple);
+                }
+            }
+
+            // `key` requires every selected node to have a full tuple;
+            // `unique` and `keyref` simply ignore the ones that do not.
+            if identity.kind == IdentityKind::Key && incomplete {
+                self.violate(
+                    path,
+                    format!(
+                        "`{}` is a key, so every selected element must \
+                         have all its fields",
+                        identity.name
+                    ),
+                );
+            }
+
+            if identity.kind == IdentityKind::KeyRef {
+                if let Some(refer) = identity.refer.clone() {
+                    self.references.push((
+                        identity.name.clone(),
+                        refer,
+                        tuples,
+                        path.to_owned(),
+                    ));
+                }
+                continue;
+            }
+
+            // `unique` and `key` both forbid a repeated tuple.
+            let mut seen: Vec<&Vec<String>> = Vec::new();
+            let mut duplicate = None;
+            for tuple in &tuples {
+                if seen.contains(&tuple) {
+                    duplicate = Some(tuple.join(", "));
+                    break;
+                }
+                seen.push(tuple);
+            }
+            if let Some(values) = duplicate {
+                self.violate(
+                    path,
+                    format!(
+                        "`{}` requires distinct values, and ({values}) \
+                         appears more than once",
+                        identity.name
+                    ),
+                );
+            }
+            self.identities
+                .entry(identity.name.clone())
+                .or_default()
+                .extend(tuples);
+        }
+    }
+
+    /// Every `keyref` tuple must appear among the tuples of the
+    /// constraint it refers to.
+    ///
+    /// Checked after the whole document is walked, because the
+    /// constraint referred to may be declared on an element reached
+    /// later.
+    fn check_references(&mut self) {
+        let references = std::mem::take(&mut self.references);
+        for (name, refer, tuples, path) in references {
+            let Some(known) = self.identities.get(&refer).cloned() else {
+                // A reference to a constraint that does not exist is a
+                // schema defect rather than a document one, and is not
+                // reported against the document.
+                continue;
+            };
+            for tuple in tuples {
+                if !known.contains(&tuple) {
+                    self.violate(
+                        &path,
+                        format!(
+                            "`{name}` refers to `{refer}`, which has no \
+                             ({}) ",
+                            tuple.join(", ")
+                        ),
+                    );
+                }
+            }
         }
     }
 
