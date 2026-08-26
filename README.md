@@ -54,19 +54,29 @@
 
 | | State |
 |---|---|
-| Schema parsing | ✅ elements, sequence, choice, cardinality, attributes |
-| Simple types | ✅ nine built-ins, nine restriction facets |
-| `xs:pattern` | ✅ own engine, XSD dialect |
+| Schema parsing | ✅ elements, model groups, cardinality, attributes |
+| Simple types | ✅ all 44 built-ins, 12 restriction facets |
+| `xs:list` and `xs:union` | ✅ |
+| `xs:all`, `xs:group`, `xs:attributeGroup` | ✅ |
+| `xs:any` and `xs:anyAttribute` | ✅ namespace and `processContents` |
+| Complex-type derivation | ✅ extension, restriction, and *Particle Valid (Restriction)* |
+| Schema validity | ✅ XSD's own structural rules |
+| `xs:pattern` | ✅ own engine, XSD dialect including class subtraction |
 | Diagnostics | ✅ every violation, each with a path |
-| Tests | ✅ 97 |
-| `xs:all` | ✗ |
+| Conformance | ✅ **95.6%** of the W3C suite's decided tests |
+| Tests | ✅ 207 |
+| Identity constraints (`key`, `keyref`, `unique`) | ✗ |
 | `xs:import` / `include` | ✗ |
-| Identity constraints | ✗ |
-| Complex-type derivation | ✗ |
+| Substitution groups | ✗ |
 
 An unsupported construct is skipped rather than rejected: the
-surrounding rules still apply, so a schema using `xs:all` validates
+surrounding rules still apply, so a schema using one validates
 everything else correctly instead of failing wholesale.
+
+**What was skipped is reported.** `support::unsupported` audits a
+schema against what this crate enforces and names everything it does
+not, so "this document is valid" and "this document was checked" are
+never confused for one another.
 
 ## Install
 
@@ -299,19 +309,37 @@ need when the message is "this one is wrong".
 
 ### Does it validate the schema itself?
 
-It rejects a schema that is not well-formed XML, and reports what it
-cannot understand. It does not validate the schema against the XSD
-schema-for-schemas.
+Partly. It rejects a schema that is not well-formed XML, reports what
+it cannot understand, and enforces the structural rules XSD imposes on
+schemas themselves — where `xs:annotation` may appear, which children
+are mutually exclusive, that two element declarations of one name must
+agree on their type, that a facet's value must belong to the type it
+narrows, and that a restriction's content model must be a valid
+restriction of its base.
+
+It does not validate a schema against the full XSD
+schema-for-schemas, which would be a second validator.
 
 ### How is this tested?
 
-97 tests over schema parsing, each built-in type, each facet, the
-pattern engine and the validator. The XML underneath carries the W3C
-conformance suite — 2,394 of 2,557 decided tests, zero panics.
+207 tests over schema parsing, every built-in type, every facet, the
+pattern engine, the validator and the derivation relation. The XML
+underneath carries the W3C XML conformance suite — 2,520 of 2,557
+decided tests, zero panics.
 
-There is no XSD conformance suite equivalent in use here yet. That is
-the main gap in this crate's verification and it is worth stating
-plainly.
+**And the W3C XML Schema Test Suite**, `xsts-2007-06-20`, pinned by
+SHA-256: **39,420 tests**, of which 95.6% of the decided ones pass,
+with zero panics. This was the main gap in the crate's verification
+until 0.0.6, and closing it is most of what 0.0.6 is.
+
+A pass rate over that suite is only worth reporting because of how it
+is counted. This crate implements a subset of XSD and skips what it
+does not understand — and a schema whose constraints were all skipped
+accepts every document, so agreeing with a test proves nothing. **A
+test counts as a pass only when the schema is enforced in full.** On
+the first run, 20,682 tests would otherwise have counted as passes
+with nothing checked; that figure is published alongside the rate, in
+`doc/CONFORMANCE.md`.
 
 ## Development
 
