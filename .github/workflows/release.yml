@@ -1,0 +1,91 @@
+name: Release
+
+# Publishing is done by CI, not from a laptop. A local `cargo publish`
+# depends on whatever that machine happened to have checked out, and
+# crates.io cannot be un-published -- only yanked.
+#
+# The trigger is a tag. Pushing `v0.0.7` publishes 0.0.7 and nothing
+# else: the first job refuses to run if the tag disagrees with
+# Cargo.toml.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # A tag that disagrees with Cargo.toml publishes the wrong
+      # version under the right name, and that cannot be taken back.
+      - name: The tag must match the version in Cargo.toml
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          have="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="xmlschema") | .version')"
+          if [ "$tag" != "$have" ]; then
+            echo "::error::tag $tag does not match Cargo.toml $have"
+            exit 1
+          fi
+          echo "publishing xmlschema $tag"
+
+      - run: cargo test --all-features
+
+      # The suite ships one version across six crates, and the order is
+      # load-bearing: `oxml-cli` and `oxml-mcp` depend on `xmlschema`,
+      # which depends on `oxml`. Publishing out of order leaves a tree
+      # resolving two incompatible `oxml` versions, which fails with
+      # `expected oxml::tree::Document, found Document`.
+      #
+      # doc/RELEASING.md got this order wrong once. Waiting here makes
+      # the order a property of the pipeline rather than of whoever
+      # pushes the tags: publish the tags in any order and each crate
+      # holds until what it needs is live.
+      - name: Wait for the crates this one depends on
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for dep in oxml; do
+            echo "waiting for $dep $tag"
+            ok=
+            for i in $(seq 1 90); do
+              if curl -sf "https://crates.io/api/v1/crates/$dep/$tag" >/dev/null; then
+                ok=1; echo "  $dep $tag is live"; break
+              fi
+              sleep 20
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::$dep $tag did not appear within 30 minutes"
+              exit 1
+            fi
+          done
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish 
+
+      # crates.io indexes asynchronously, so a publish that returned
+      # success is not yet a publish anyone can depend on. The next
+      # crate in the suite waits on exactly this.
+      - name: Confirm it is on crates.io
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 30); do
+            if curl -sf "https://crates.io/api/v1/crates/xmlschema/$tag" >/dev/null; then
+              echo "xmlschema $tag is live"; exit 0
+            fi
+            echo "not indexed yet ($i/30)"; sleep 10
+          done
+          echo "::error::xmlschema $tag did not appear within five minutes"
+          exit 1
