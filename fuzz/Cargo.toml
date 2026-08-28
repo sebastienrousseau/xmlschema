@@ -16,7 +16,7 @@ libfuzzer-sys = "0.4"
 path = ".."
 
 [dependencies.oxml]
-version = "0.0.6"
+version = "0.0.7"
 
 # Fuzzing wants the optimised build; debug assertions stay on so
 # overflow checks and `debug_assert!` still fire on found inputs.

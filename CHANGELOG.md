@@ -8,7 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
-## [Unreleased]
+## [0.0.7] - 2026-08-28
+
+### Changed
+
+- Built on oxml 0.0.7, which reads a document from any `BufRead`. The
+  suite ships one version number across all six crates.
 
 ### Fixed
 
