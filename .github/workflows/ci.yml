@@ -45,6 +45,19 @@ jobs:
       # The manifest claims 1.86.0; nothing was checking that claim.
       - run: cargo check --all-features
 
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The example asserts rather than prints, so running it checks
+      # the API it demonstrates still behaves as documented. `cargo
+      # test` builds examples but never runs them, which reads as
+      # coverage it is not.
+      - run: cargo run --example validate
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
