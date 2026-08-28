@@ -107,12 +107,17 @@ fn no_schema_in_the_suite_panics_the_validator() {
     assert!(panics.is_empty(), "these schemas panicked: {panics:?}");
 }
 
-/// The figures published in the README must be the ones the suite
+/// The figures published in the docs must be the ones the suite
 /// produces.
 ///
 /// Prose restating a measured number drifts from it silently. In
 /// `oxml` a per-submission table sat two eras out of date while the
 /// summary above it was current, in the same file, for months.
+///
+/// This checked `README.md` alone until 0.0.7, and `doc/TESTING.md`
+/// drifted behind it exactly as predicted -- quoting 95.6% of 34,514
+/// decided when the run gave 95.0% of 35,942. A check that covers one
+/// of two documents reports success over the one it does not read.
 #[test]
 fn the_published_figures_are_current() {
     let root = require_suite!();
@@ -134,5 +139,35 @@ fn the_published_figures_are_current() {
     assert!(
         readme.contains(&pretty) || readme.contains(&total),
         "README.md does not state the suite size `{pretty}`"
+    );
+
+    // `doc/TESTING.md` quotes the report's own two lines verbatim, so
+    // it is checked against the string the report would print rather
+    // than against a rate reformatted here. Building the expected text
+    // independently is how `oxml`'s equivalent came to demand a figure
+    // its own tool never produced.
+    let testing = include_str!("../../doc/TESTING.md");
+    let headline = format!(
+        "{} pass, {} fail, {} panic, {} unsupported, {} blocked",
+        counts.pass,
+        counts.fail,
+        counts.panic,
+        counts.unsupported,
+        counts.blocked,
+    );
+    assert!(
+        testing.contains(&headline),
+        "doc/TESTING.md does not report `{headline}`"
+    );
+    let rates = format!(
+        "{:.1}% of {} decided ({:.1}% coverage of {})",
+        counts.pass_rate(),
+        counts.decided(),
+        counts.coverage(),
+        counts.total(),
+    );
+    assert!(
+        testing.contains(&rates),
+        "doc/TESTING.md does not report `{rates}`"
     );
 }

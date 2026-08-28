@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [Unreleased]
+
+### Fixed
+
+- **The published-figures check read only `README.md`.** doc/TESTING.md
+  drifted behind it exactly as the check was written to prevent,
+  quoting 95.6% of 34,514 decided where the run gives 95.0% of 35,942,
+  and 87.6% coverage where it gives 91.2%. The check now covers both
+  documents, and was confirmed by reverting a figure and watching it
+  fail.
+
+- The test count stated in `README.md` and doc/TESTING.md said 207
+  where the suite has 236. `tests/published_counts.rs` now checks it.
+
+- oxml's conformance was quoted as 2,520 of 2,557 decided; it is
+  2,557 of 2,557.
+
 ## [0.0.6] - 2026-08-26
 
 ### Added

@@ -322,9 +322,9 @@ schema-for-schemas, which would be a second validator.
 
 ### How is this tested?
 
-207 tests over schema parsing, every built-in type, every facet, the
+236 tests over schema parsing, every built-in type, every facet, the
 pattern engine, the validator and the derivation relation. The XML
-underneath carries the W3C XML conformance suite — 2,520 of 2,557
+underneath carries the W3C XML conformance suite — 2,557 of 2,557
 decided tests, zero panics.
 
 **And the W3C XML Schema Test Suite**, `xsts-2007-06-20`, pinned by
