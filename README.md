@@ -14,6 +14,7 @@
   <a href="https://docs.rs/xmlschema"><img src="https://img.shields.io/badge/docs.rs-xmlschema-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" alt="Docs.rs" /></a>
   <a href="https://lib.rs/crates/xmlschema"><img src="https://img.shields.io/badge/lib.rs-xmlschema-orange.svg?style=for-the-badge" alt="lib.rs" /></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/sebastienrousseau/xmlschema"><img src="https://img.shields.io/ossf-scorecard/github.com/sebastienrousseau/xmlschema?style=for-the-badge&label=OpenSSF%20Scorecard&logo=openssf" alt="OpenSSF Scorecard" /></a>
+  <a href="https://www.bestpractices.dev/projects/14315"><img src="https://img.shields.io/cii/level/14315?style=for-the-badge&label=OpenSSF%20Best%20Practices&logo=openssf" alt="OpenSSF Best Practices" /></a>
 </p>
 
 ---
