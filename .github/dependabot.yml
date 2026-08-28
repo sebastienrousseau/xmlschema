@@ -20,3 +20,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # `dtolnay/rust-toolchain@1.98.0` is not an action version, it is
+      # the *Rust toolchain* this project pins -- the same version in
+      # rust-toolchain.toml and in scripts/gate.sh. Dependabot read it
+      # as a stale dependency and opened a pull request moving the
+      # whole suite to a different compiler, which failed six checks.
+      #
+      # Changing the toolchain is a deliberate decision made in one
+      # place, not a dependency bump.
+      - dependency-name: dtolnay/rust-toolchain
