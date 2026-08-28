@@ -31,17 +31,27 @@
 **Getting started**
 
 - [Status](#status) — what works today, honestly
-- [Install](#install) — once there is something to install
+- [Install](#install) — Cargo
+- [Quick Start](#quick-start) — validate a document in ten lines
+
+**The oxml ecosystem**
+
+- [The oxml ecosystem](#the-oxml-ecosystem) — six crates, one version
 
 **Reference**
 
 - [Why this crate exists](#why-this-crate-exists) — the gap it fills
-- [The oxml ecosystem](#the-oxml-ecosystem) — where this fits
 - [Ecosystem comparison](#ecosystem-comparison) — XSD support in Rust
-- [Planned capabilities](#planned-capabilities) — the roadmap
+- [Reading a report](#reading-a-report) — every violation, each with a path
+- [Migration](#migration) — from `libxml`
+- [What is not implemented](#what-is-not-implemented) — and what comes next
+- [Benchmarks](#benchmarks) — schema parsing, validation, the pattern engine
 
 **Practical**
 
+- [Examples](#examples) — runnable, and run in CI
+- [When not to use xmlschema](#when-not-to-use-xmlschema)
+- [FAQ](#faq)
 - [Development](#development)
 - [Security](#security)
 - [Documentation](#documentation)
@@ -64,7 +74,7 @@
 | `xs:pattern` | ✅ own engine, XSD dialect including class subtraction |
 | Diagnostics | ✅ every violation, each with a path |
 | Conformance | ✅ **95.0%** of the W3C suite's decided tests, ratcheted |
-| Tests | ✅ 238 |
+| Tests | ✅ 236, plus the conformance suite |
 | Identity constraints (`key`, `keyref`, `unique`) | ✗ |
 | `xs:import` / `include` | ✗ |
 | Substitution groups | ✗ |
@@ -162,45 +172,57 @@ entirely different under a name they already depend on.
 
 ## Ecosystem comparison
 
-| Crate | XSD validation | Pure Rust | WASM | Last release |
+| Crate | XSD validation | Pure Rust | WASM | Status |
 |---|---|---|---|---|
-| **`xmlschema`** | planned | ✅ | ✅ | 2023 (unusable) |
+| **`xmlschema`** | ✅ 95.0% of the W3C suite's decided tests | ✅ | ✅ | active |
 | `libxml` | ✅ | ✗ (C-FFI) | ✗ | active |
 | `quick-xml` | ✗ | ✅ | ✅ | active |
 | `roxmltree` | ✗ | ✅ | ✅ | active |
-| `xot` | ✗ | ✅ | ✅ | 2025 |
+| `xot` | ✗ | ✅ | ✅ | active |
 
-## Planned capabilities
+`libxml` remains the more complete implementation. The difference is
+what it costs: a C toolchain, `unsafe`, no WebAssembly target, and
+libxml2's CVE stream. This crate trades completeness for those.
 
-In order:
+## What is not implemented
 
-1. **Schema parsing** — read an `.xsd` into a usable model, built on
-   `oxml`'s tree.
-2. **Structural validation** — elements, attributes, cardinality,
-   sequence/choice/all.
-3. **Simple type validation** — the built-in datatypes, restrictions,
-   patterns, enumerations.
-4. **Complex types** — extension, restriction, mixed content.
-5. **Diagnostics** — every violation reported with an element path and
-   a reason, so a caller can fix all of them in one pass rather than
-   probing one failure at a time.
+Everything in the list this section used to hold has shipped — schema
+parsing, structural validation, simple types, complex types and
+diagnostics are all ✅ in [Status](#status) above. What remains:
 
-Import mechanisms (`xs:import`, `xs:include`, `xs:redefine`) come after
-the core is correct, because they multiply the surface without adding
-validation power.
+1. **Identity constraints** — `xs:key`, `xs:keyref`, `xs:unique`.
+2. **Import mechanisms** — `xs:import`, `xs:include`, `xs:redefine`.
+   These come after the core is correct, because they multiply the
+   surface without adding validation power.
+3. **Substitution groups**, and the undecidable corners of derivation
+   validity.
 
+An unsupported construct is skipped rather than rejected, and the
+conformance harness counts such a test as *unsupported* whatever
+answer it produced — so the published rate never flatters itself with
+accidental agreement.
 
-## Examples
-
-[`examples/`](examples/) is compiled and run in CI.
-
-| Example | What it shows |
-|---|---|
-| [`validate`](examples/validate.rs) | Parsing a schema once, validating many, and reading a `Report` |
+## Benchmarks
 
 ```bash
-cargo run --example validate
+cargo bench --bench schema     # parsing an .xsd into the model
+cargo bench --bench validate   # validating documents against it
+cargo bench --bench pattern    # the `xs:pattern` engine
 ```
+
+Three benchmarks, split because they answer different questions.
+Parsing a schema is the expensive half and happens once; validating is
+the cheap half and repeats. The pattern engine is separate because it
+is a regex implementation of its own, in XSD's dialect rather than
+PCRE's.
+
+No absolute figures are published here. The same benchmarks on this
+machine returned confidence intervals spanning 566–906 µs for a single
+case — a spread wider than most changes worth measuring — because the
+machine was busy. A figure without its conditions is not a
+measurement. See
+[oxml's BENCHMARKS.md](https://github.com/sebastienrousseau/oxml/blob/main/doc/BENCHMARKS.md)
+for the method and what a published number has to carry.
 
 ## Reading a report
 
@@ -246,6 +268,18 @@ of text to grep.
 `libxml2` implements XSD 1.0 completely and this crate does not — see
 [Status](#status). If you need `xs:import`, identity constraints or
 complex-type derivation today, stay.
+
+## Examples
+
+[`examples/`](examples/) is compiled and run in CI.
+
+| Example | What it shows |
+|---|---|
+| [`validate`](examples/validate.rs) | Parsing a schema once, validating many, and reading a `Report` |
+
+```bash
+cargo run --example validate
+```
 
 ## When not to use xmlschema
 
@@ -344,10 +378,35 @@ with nothing checked; that figure is published alongside the rate, in
 ## Development
 
 ```bash
-git clone https://github.com/sebastienrousseau/xmlschema
-cd xmlschema
-cargo test
+./scripts/gate.sh
 ```
+
+That runs everything CI runs, in the order that fails fastest: format,
+clippy, tests, rustdoc, the `#![forbid(unsafe_code)]` check, the
+example, the W3C XSD conformance suite, the 95% coverage floor and an
+MSRV build. It pins the toolchain rather than trusting
+`rust-toolchain.toml`, because a `RUSTUP_TOOLCHAIN` in the environment
+silently overrides that file and a lint that exists in one release and
+not another then makes a green local run and a red CI one.
+
+The conformance step is **skipped loudly** when the suite has not been
+downloaded, and counts as a failure rather than vanishing. A skipped
+conformance test is a passing one as far as `cargo test` is concerned,
+and this crate's headline figure rests on that suite.
+
+The individual steps, if you want them one at a time:
+
+```bash
+cargo test --all-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo fmt --all --check
+cargo bench --bench schema
+cargo run --example validate
+cargo run --release -p xmlschema-conformance --bin download
+cargo test --release -p xmlschema-conformance
+```
+
+CI runs the same set on Linux, macOS and Windows.
 
 ## Security
 
