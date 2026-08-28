@@ -1,0 +1,20 @@
+xmlschema is distributed under the terms of both the MIT license and the
+Apache License, Version 2.0, at your option.
+
+  - Apache License, Version 2.0 .... LICENSE-APACHE
+  - MIT license ................... LICENSE-MIT
+
+SPDX-License-Identifier: MIT OR Apache-2.0
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in this work by you, as defined in the
+Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.
+
+This file exists so that the licence is discoverable in the
+conventional place. Tools that look for a project's licence -- GitHub,
+the OpenSSF Best Practices badge, OpenSSF Scorecard, and package
+mirrors -- look for a file named LICENSE. Two files named
+LICENSE-APACHE and LICENSE-MIT are the correct way to carry a dual
+licence, but on their own they answer a question none of those tools
+knows how to ask.
