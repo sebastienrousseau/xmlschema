@@ -8,14 +8,14 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo run --example validate
 ```
 
-207 tests over schema parsing, every built-in simple type, every
+236 tests over schema parsing, every built-in simple type, every
 restriction facet, the pattern engine, the validator's content models
 and cardinality, and the derivation relation.
 
 ## What the layer below provides
 
 The XML parsing is `oxml`'s, and carries the heavier verification: the
-W3C XML Conformance Test Suite at 2,520 of 2,557 decided tests with
+W3C XML Conformance Test Suite at 2,557 of 2,557 decided tests with
 **zero panics**, five fuzz targets, Miri, and property tests. See
 <https://github.com/sebastienrousseau/oxml/blob/main/doc/TESTING.md>.
 
@@ -45,8 +45,8 @@ of them, and a harness that counted them would have reported 74.2%
 while measuring almost nothing.
 
 ```
-overall  32980 pass, 1534 fail, 0 panic, 4841 unsupported, 65 blocked
-         95.6% of 34514 decided (87.6% coverage of 39420)
+overall  34142 pass, 1800 fail, 0 panic, 3413 unsupported, 65 blocked
+         95.0% of 35942 decided (91.2% coverage of 39420)
 ```
 
 Coverage is the figure to read first: it is the share of the suite

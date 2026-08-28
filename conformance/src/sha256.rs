@@ -9,6 +9,17 @@
 //! one thing the pin exists to prevent. It lives in the library
 //! rather than the binary so that it can be tested.
 
+// FIPS 180-4 names these variables `h`, `w`, `a`..`h` and `k`. Renaming
+// them to satisfy a lint would make the code harder to check against
+// the specification, which is the only way anyone verifies a hash
+// implementation. The function is long for the same reason: the
+// compression loop is one block in the standard and splitting it would
+// obscure rather than clarify.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::format_collect
+)]
 #[must_use]
 pub fn sha256(data: &[u8]) -> String {
     const K: [u32; 64] = [

@@ -43,6 +43,23 @@ pub struct Counts {
     pub vacuous: usize,
 }
 
+impl core::fmt::Display for Outcome {
+    /// The word written into a baseline row.
+    ///
+    /// Stable by contract: a baseline is a committed file, so renaming
+    /// an outcome here would read as every test having changed at
+    /// once.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Pass => "pass",
+            Self::Fail => "fail",
+            Self::Unsupported => "unsupported",
+            Self::Blocked => "blocked",
+            Self::Panic => "panic",
+        })
+    }
+}
+
 impl Counts {
     /// Record one outcome.
     ///
@@ -85,7 +102,11 @@ impl Counts {
         if self.decided() == 0 {
             return 0.0;
         }
-        self.pass as f64 * 100.0 / self.decided() as f64
+        // A count that exceeded f64's 53-bit mantissa would need
+        // 9,007,199,254,740,993 tests. The suite has 39,420.
+        #[allow(clippy::cast_precision_loss)]
+        let rate = self.pass as f64 * 100.0 / self.decided() as f64;
+        rate
     }
 
     /// Share of the suite that reached a decision.
@@ -98,7 +119,9 @@ impl Counts {
         if self.total() == 0 {
             return 0.0;
         }
-        self.decided() as f64 * 100.0 / self.total() as f64
+        #[allow(clippy::cast_precision_loss)]
+        let rate = self.decided() as f64 * 100.0 / self.total() as f64;
+        rate
     }
 
     /// What the pass rate would have been had unsupported tests been
@@ -112,7 +135,9 @@ impl Counts {
         if decided == 0 {
             return 0.0;
         }
-        (self.pass + self.vacuous) as f64 * 100.0 / decided as f64
+        #[allow(clippy::cast_precision_loss)]
+        let rate = (self.pass + self.vacuous) as f64 * 100.0 / decided as f64;
+        rate
     }
 }
 
@@ -148,7 +173,10 @@ mod tests {
         assert_eq!(c.unsupported, 1);
         assert_eq!(c.vacuous, 1);
         assert_eq!(c.decided(), 0);
-        assert_eq!(c.pass_rate(), 0.0, "an unchecked answer is not a pass");
+        assert!(
+            c.pass_rate().abs() < f64::EPSILON,
+            "an unchecked answer is not a pass"
+        );
     }
 
     #[test]
@@ -161,7 +189,10 @@ mod tests {
         // Honest: one decided test, one pass.
         assert_eq!(c.decided(), 1);
         assert!((c.pass_rate() - 100.0).abs() < f64::EPSILON);
-        assert_eq!(c.coverage(), 10.0, "one of ten tests decided anything");
+        assert!(
+            (c.coverage() - 10.0).abs() < f64::EPSILON,
+            "one of ten tests decided anything"
+        );
         // Flattered: ten "passes" out of ten.
         assert!((c.flattered_rate() - 100.0).abs() < f64::EPSILON);
         assert_eq!(c.vacuous, 9, "nine answers nothing was checked for");

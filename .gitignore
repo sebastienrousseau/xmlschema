@@ -7,3 +7,13 @@ Cargo.lock
 Icon?
 src/.DS_Store
 conformance/data/
+
+# cargo-fuzz working directories; the targets and seeds are tracked.
+fuzz/target/
+fuzz/artifacts/
+fuzz/coverage/
+
+# libFuzzer writes its generated corpus here. The hand-written
+# seeds in fuzz/seeds/ are tracked; 3,096 machine-generated inputs
+# weighing 12 MB are not.
+fuzz/corpus/

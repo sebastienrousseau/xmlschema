@@ -9,6 +9,16 @@ use xmlschema_conformance::{
     REAL_TESTS, SUITE_RELEASE, catalog, data_dir, outcome::Outcome, runner,
 };
 
+// A report is a sequence of sections printed in order; splitting it
+// into helpers that each print one part and share no state would add
+// indirection without adding clarity. The rate arithmetic casts counts
+// to `f64`: a count past the 53-bit mantissa would need
+// 9,007,199,254,740,993 tests, and the suite has 39,420.
+#[allow(
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::cast_precision_loss
+)]
 fn main() -> Result<(), String> {
     let Some(root) = data_dir() else {
         return Err("run the `download` bin first".into());
@@ -79,7 +89,7 @@ fn main() -> Result<(), String> {
     for r in &rejected {
         let detail = r.detail.as_deref().unwrap_or("(no message)");
         let key: String = detail
-            .split(|c: char| c == '`' || c == '\'')
+            .split(['`', '\''])
             .step_by(2)
             .collect::<Vec<_>>()
             .join("_")
@@ -89,7 +99,7 @@ fn main() -> Result<(), String> {
         *causes.entry(key).or_default() += 1;
     }
     let mut ranked: Vec<_> = causes.into_iter().collect();
-    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    ranked.sort_by_key(|entry| core::cmp::Reverse(entry.1));
     println!("\nwrongly rejected, by message:");
     for (cause, n) in ranked.iter().take(15) {
         println!("  {n:>6}  {cause}");
@@ -105,7 +115,7 @@ fn main() -> Result<(), String> {
                 continue;
             };
             let key: String = detail
-                .split(|c: char| c == '`' || c == '\'')
+                .split(['`', '\''])
                 .step_by(2)
                 .collect::<Vec<_>>()
                 .join("_")
@@ -140,7 +150,7 @@ fn main() -> Result<(), String> {
             .or_default() += 1;
     }
     let mut ranked: Vec<_> = families.into_iter().collect();
-    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    ranked.sort_by_key(|entry| core::cmp::Reverse(entry.1));
     println!("\nwrongly accepted, by test family:");
     for (family, n) in ranked.iter().take(20) {
         // Name a few, because a family tells you what area is wrong
@@ -165,7 +175,7 @@ fn main() -> Result<(), String> {
         }
     }
     let mut ranked: Vec<_> = reasons.into_iter().collect();
-    ranked.sort_by(|a, b| b.1.cmp(&a.1));
+    ranked.sort_by_key(|entry| core::cmp::Reverse(entry.1));
     println!("\nwhat stops enforcement, most common first:");
     for (reason, n) in ranked.iter().take(25) {
         println!("  {n:>6}  {reason}");

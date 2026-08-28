@@ -55,7 +55,11 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      # `--workspace`, or the `conformance` crate is never linted: it
+      # is a workspace member and not the default package, so the
+      # command without it had been checking the library alone. Ten
+      # errors had accumulated there unseen.
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -72,6 +76,70 @@ jobs:
             exit 1
           fi
           echo "unsafe_code is forbidden"
+
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    # cargo-fuzz needs nightly, and the pinned toolchain would
+    # otherwise replace it.
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parse_schema, validate]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      # `cargo install` rather than a prebuilt: a prebuilt landed
+      # somewhere `cargo fuzz` could not find under a pinned
+      # toolchain, giving `no such command: fuzz`.
+      - run: cargo install cargo-fuzz --locked
+      - uses: Swatinem/rust-cache@v2
+      # Seeds matter more than run time. From an empty corpus libFuzzer
+      # spends almost the whole budget on inputs that are not XML at
+      # all, and reaches almost no schema code.
+      - name: Seed the corpus
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cp fuzz/seeds/${{ matrix.target }}/* fuzz/corpus/${{ matrix.target }}/
+      - name: Fuzz for 300s
+        run: >
+          cargo fuzz run ${{ matrix.target }} --
+          -max_total_time=300 -timeout=10
+      - name: Upload any crash
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts
+
+  conformance:
+    name: W3C XSD conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache the suite
+        uses: actions/cache@v4
+        with:
+          path: conformance/data
+          key: xsts-2007-06-20-v1
+      # The download verifies a pinned SHA-256. That is not ceremony:
+      # a host behind a challenge page answers a request without a
+      # browser User-Agent with an HTML body and HTTP 200, which
+      # extracts to an empty directory. The suite would then be
+      # "present" and hold nothing.
+      - run: cargo run --release -p xmlschema-conformance --bin download
+      # `XMLSCHEMA_REQUIRE_SUITE=1` so a missing or empty suite fails
+      # here rather than skipping. A skipped test is a passing test to
+      # `cargo test`, so without this the job could report success
+      # having run none of the 39,420 -- which is what the empty
+      # extraction above would produce.
+      - run: cargo test --release -p xmlschema-conformance
+        env:
+          XMLSCHEMA_REQUIRE_SUITE: "1"
 
   coverage:
     name: Coverage
