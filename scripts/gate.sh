@@ -10,7 +10,11 @@
 # Run it before pushing. It is slower than `cargo "+$TOOLCHAIN" test`; it is much
 # faster than a round-trip through CI.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+# Resolve the repository from this script's own location, not from
+# the caller's. `git rev-parse` reads the *current* directory, so
+# running this by absolute path from anywhere else failed with
+# "fatal: not a git repository".
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # The toolchain is named explicitly rather than left to
 # `rust-toolchain.toml`. A `RUSTUP_TOOLCHAIN` in the environment

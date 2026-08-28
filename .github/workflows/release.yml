@@ -70,6 +70,22 @@ jobs:
             fi
           done
 
+      # Until CARGO_REGISTRY_TOKEN exists, this crate is published
+      # from a laptop with `scripts/publish.sh`. Say so plainly rather
+      # than letting `cargo publish` fail on an empty token, which
+      # reports as an authentication error and reads like a revoked
+      # credential.
+      - name: The publish token must be set
+        env:
+          TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN is not set on this repository."
+            echo "Either add it, or publish with scripts/publish.sh and do"
+            echo "not push release tags."
+            exit 1
+          fi
+
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
