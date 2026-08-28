@@ -2,6 +2,19 @@
 
 Thank you for considering a contribution.
 
+## Where to start
+
+Tasks suitable for a first contribution are labelled
+[**good first issue**](https://github.com/sebastienrousseau/xmlschema/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
+and anything the maintainer would welcome help with is labelled
+[**help wanted**](https://github.com/sebastienrousseau/xmlschema/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+
+Each one states what "done" looks like, so you can tell whether you
+have finished without asking. Several also say why the obvious
+approach does not work — that is the part usually learned by trying it.
+
+If none of them appeal, opening an issue to ask is fine.
+
 ## Ground rules
 
 - **No `unsafe`.** The crate is `#![forbid(unsafe_code)]` and that is
