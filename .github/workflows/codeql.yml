@@ -1,0 +1,44 @@
+name: CodeQL
+
+# Scorecard's SAST check scores 0 without a recognised static-analysis
+# tool, and clippy does not count towards it. CodeQL's Rust support is
+# recent, so this workflow is being trialled rather than assumed: if
+# the analysis does not actually run on this codebase, the file should
+# be removed rather than left as a job that reports success over
+# nothing.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ['**']
+  schedule:
+    - cron: "0 5 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyse
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+        with:
+          languages: rust
+          build-mode: none
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+        with:
+          category: "/language:rust"
