@@ -1,0 +1,22 @@
+# Dependabot keeps both dependency trees current.
+#
+# Scorecard's Dependency-Update-Tool check looks for exactly this file.
+# It scored zero without it, which was accurate: nothing was watching
+# for a vulnerable transitive dependency between `cargo audit` runs.
+#
+# GitHub Actions are pinned by commit SHA rather than tag, so a moved
+# tag cannot change what runs. Dependabot understands that pinning and
+# updates the SHA while keeping the `# v4` comment accurate.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
