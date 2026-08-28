@@ -77,6 +77,43 @@ jobs:
           fi
           echo "unsafe_code is forbidden"
 
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    # cargo-fuzz needs nightly, and the pinned toolchain would
+    # otherwise replace it.
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [parse_schema, validate]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      # `cargo install` rather than a prebuilt: a prebuilt landed
+      # somewhere `cargo fuzz` could not find under a pinned
+      # toolchain, giving `no such command: fuzz`.
+      - run: cargo install cargo-fuzz --locked
+      - uses: Swatinem/rust-cache@v2
+      # Seeds matter more than run time. From an empty corpus libFuzzer
+      # spends almost the whole budget on inputs that are not XML at
+      # all, and reaches almost no schema code.
+      - name: Seed the corpus
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cp fuzz/seeds/${{ matrix.target }}/* fuzz/corpus/${{ matrix.target }}/
+      - name: Fuzz for 300s
+        run: >
+          cargo fuzz run ${{ matrix.target }} --
+          -max_total_time=300 -timeout=10
+      - name: Upload any crash
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts
+
   conformance:
     name: W3C XSD conformance
     runs-on: ubuntu-latest

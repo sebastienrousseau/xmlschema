@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="a" type="xs:string"/>
+  <xs:complexType name="t"><xs:sequence><xs:element ref="a"/></xs:sequence></xs:complexType>
+  <xs:simpleType name="s"><xs:restriction base="xs:int"><xs:minInclusive value="0"/></xs:restriction></xs:simpleType>
+</xs:schema>

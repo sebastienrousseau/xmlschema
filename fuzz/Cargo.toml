@@ -1,0 +1,40 @@
+[workspace]
+
+[package]
+name = "xmlschema-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.xmlschema]
+path = ".."
+
+[dependencies.oxml]
+version = "0.0.6"
+
+# Fuzzing wants the optimised build; debug assertions stay on so
+# overflow checks and `debug_assert!` still fire on found inputs.
+[profile.release]
+debug = true
+debug-assertions = true
+overflow-checks = true
+
+[[bin]]
+name = "parse_schema"
+path = "fuzz_targets/parse_schema.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "validate"
+path = "fuzz_targets/validate.rs"
+test = false
+doc = false
+bench = false
