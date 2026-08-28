@@ -11,7 +11,11 @@
 # crates.io cannot be un-published, only yanked. Everything below
 # happens before the upload, and any failure stops it.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+# Resolve the repository from this script's own location, not from
+# the caller's. `git rev-parse` reads the *current* directory, so
+# running this by absolute path from anywhere else failed with
+# "fatal: not a git repository".
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 CRATE="xmlschema"
 DEPS=(oxml)
