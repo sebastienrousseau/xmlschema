@@ -39,7 +39,7 @@ git fetch origin --quiet
 #    dependency is not yet live cannot resolve. The CI workflow waits;
 #    here, say so and stop.
 for dep in "${DEPS[@]}"; do
-  if curl -sf "https://crates.io/api/v1/crates/$dep/$version" >/dev/null; then
+  if curl -sf -H "User-Agent: xmlschema publish script (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$version" >/dev/null; then
     echo "  dependency $dep $version is live"
   else
     echo "  dependency $dep $version is NOT on crates.io yet -- publish it first"
@@ -63,7 +63,7 @@ cargo publish "${PKG_ARG[@]}"
 #    success is not yet one the next crate can depend on.
 echo "waiting for the index"
 for i in $(seq 1 30); do
-  if curl -sf "https://crates.io/api/v1/crates/$CRATE/$version" >/dev/null; then
+  if curl -sf -H "User-Agent: xmlschema publish script (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$CRATE/$version" >/dev/null; then
     echo "$CRATE $version is live"
     exit 0
   fi
