@@ -63,8 +63,8 @@
 | Schema validity | ✅ XSD's own structural rules |
 | `xs:pattern` | ✅ own engine, XSD dialect including class subtraction |
 | Diagnostics | ✅ every violation, each with a path |
-| Conformance | ✅ **95.6%** of the W3C suite's decided tests |
-| Tests | ✅ 207 |
+| Conformance | ✅ **95.0%** of the W3C suite's decided tests, ratcheted |
+| Tests | ✅ 238 |
 | Identity constraints (`key`, `keyref`, `unique`) | ✗ |
 | `xs:import` / `include` | ✗ |
 | Substitution groups | ✗ |
@@ -149,10 +149,10 @@ compatibility table to consult.
 | Crate | What it is | Status |
 |---|---|---|
 | [`oxml`](https://github.com/sebastienrousseau/oxml) | Core — parser, tree, XPath 1.0 | **Available** |
-| [`oxml-cli`](https://github.com/sebastienrousseau/oxml-cli) | Command-line querying and formatting | Planned |
-| [`oxml-lsp`](https://github.com/sebastienrousseau/oxml-lsp) | Language server | Planned |
-| [`oxml-mcp`](https://github.com/sebastienrousseau/oxml-mcp) | Model Context Protocol server | Planned |
-| [`oxml-wasm`](https://github.com/sebastienrousseau/oxml-wasm) | WebAssembly bindings | Planned |
+| [`oxml-cli`](https://github.com/sebastienrousseau/oxml-cli) | Command-line querying and formatting | **Available** |
+| [`oxml-lsp`](https://github.com/sebastienrousseau/oxml-lsp) | XML analysis and linting; the LSP transport is not yet implemented | **Available** |
+| [`oxml-mcp`](https://github.com/sebastienrousseau/oxml-mcp) | Model Context Protocol server | **Available** |
+| [`oxml-wasm`](https://github.com/sebastienrousseau/oxml-wasm) | WebAssembly bindings | **Available** |
 | **`xmlschema`** | **XSD validation** | **Being rewritten** |
 
 This crate keeps its published name rather than being folded into
@@ -328,7 +328,7 @@ underneath carries the W3C XML conformance suite — 2,520 of 2,557
 decided tests, zero panics.
 
 **And the W3C XML Schema Test Suite**, `xsts-2007-06-20`, pinned by
-SHA-256: **39,420 tests**, of which 95.6% of the decided ones pass,
+SHA-256: **39,420 tests**, of which 95.0% of the decided ones pass,
 with zero panics. This was the main gap in the crate's verification
 until 0.0.6, and closing it is most of what 0.0.6 is.
 

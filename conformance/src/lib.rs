@@ -17,6 +17,7 @@
 //! separately and published, because their size is the whole argument
 //! for measuring this way.
 
+pub mod baseline;
 pub mod catalog;
 pub mod outcome;
 pub mod runner;
@@ -59,13 +60,28 @@ macro_rules! require_suite {
     () => {
         match $crate::data_dir() {
             Some(root) => root,
-            None => {
+            // Set `XMLSCHEMA_REQUIRE_SUITE=1` to make a missing suite
+            // a failure instead of a skip.
+            //
+            // `cargo test` on a fresh clone has no network and should
+            // not need one, so the default is to skip. But a skipped
+            // test is reported as a *passing* test, so a gate that
+            // accepts the skip prints success having run none of the
+            // 39,420 tests. `oxml` shipped exactly that for a while;
+            // CI here sets the variable so it cannot happen.
+            None if ::std::env::var_os("XMLSCHEMA_REQUIRE_SUITE").is_none() => {
                 eprintln!(
                     "the suite is not downloaded; run\n  \
                      cargo run -p xmlschema-conformance --bin download"
                 );
                 return;
             }
+            None => panic!(
+                "XMLSCHEMA_REQUIRE_SUITE is set and the suite is not \
+                 present. Run `cargo run -p xmlschema-conformance \
+                 --bin download`. Refusing to report a pass for tests \
+                 that did not run."
+            ),
         }
     };
 }
