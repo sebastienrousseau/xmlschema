@@ -98,6 +98,38 @@ jobs:
           fi
           echo "every commit is signed off"
 
+  branch-coverage:
+    name: Branch coverage
+    runs-on: ubuntu-latest
+    # Branch coverage needs nightly; `rust-toolchain.toml` would
+    # otherwise pin this job to the release toolchain, where
+    # `cargo llvm-cov --branch` does not build.
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # cargo-llvm-cov has --fail-under-lines but no branch equivalent,
+      # so the floor is enforced by reading the summary. Branch
+      # coverage is the weaker of the two measures precisely because it
+      # is the harder one to reach, so the bar is 80 rather than 95.
+      - name: Branch coverage must stay above 80%
+        run: |
+          cargo llvm-cov --branch --all-features --summary-only \
+            --ignore-filename-regex 'builds/cargo/package' | tee /tmp/branch.txt
+          awk '/^TOTAL/{
+            gsub(/%/,"",$NF)
+            if ($NF+0 < 80) {
+              print "::error::branch coverage " $NF "% is below the 80% floor"
+              exit 1
+            }
+            print "branch coverage " $NF "%"
+          }' /tmp/branch.txt
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
