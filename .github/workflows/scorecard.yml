@@ -5,9 +5,8 @@ name: Scorecard
 # this workflow the badge renders empty -- it did for months, because
 # the badge was added and the thing that produces its data never was.
 #
-# `publish_results: true` is what makes the score public. Without it
-# the run produces a SARIF file for the Security tab and the badge
-# stays blank.
+# `publish_results: true` is what makes the score public and feeds the
+# badge. Without it the run computes a score that nothing can read.
 on:
   branch_protection_rule:
   schedule:
@@ -22,8 +21,6 @@ jobs:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
-      # Needed to upload the results to the code-scanning dashboard.
-      security-events: write
       # Needed to publish the results and get a badge.
       id-token: write
       contents: read
@@ -51,7 +48,17 @@ jobs:
           path: results.sarif
           retention-days: 5
 
-      - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
-        with:
-          sarif_file: results.sarif
+      # The results are deliberately NOT uploaded to code scanning.
+      #
+      # Scorecard reports posture scores -- "0 approved changesets",
+      # "branch protection is not maximal", "8 of 30 commits checked by
+      # a SAST tool". Those are ratios and policy observations, not
+      # defects in this code. Uploaded as SARIF they became 86 open
+      # "alerts" across the suite that nobody triaged and that no code
+      # change could clear, which is how a real finding gets lost.
+      #
+      # Code scanning now holds CodeQL results only, so an alert there
+      # means something about the code. The Scorecard result stays
+      # public through `publish_results: true` -- it feeds the README
+      # badge and the API -- and the SARIF is kept as an artifact
+      # above for anyone who wants to read it.
