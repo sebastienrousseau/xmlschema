@@ -30,13 +30,9 @@ updates:
       codeql:
         patterns:
           - "github/codeql-action*"
-    ignore:
-      # `dtolnay/rust-toolchain@1.98.0` is not an action version, it is
-      # the *Rust toolchain* this project pins -- the same version in
-      # rust-toolchain.toml and in scripts/gate.sh. Dependabot read it
-      # as a stale dependency and opened a pull request moving the
-      # whole suite to a different compiler, which failed six checks.
-      #
-      # Changing the toolchain is a deliberate decision made in one
-      # place, not a dependency bump.
-      - dependency-name: dtolnay/rust-toolchain
+    # `dtolnay/rust-toolchain` was ignored here while its ref carried the
+    # Rust toolchain (`@1.98.0`); Dependabot read that as a stale action
+    # version and proposed moving the compiler. The ref is now a pinned
+    # commit SHA and the toolchain moved into a `with: toolchain:` input,
+    # so the two are no longer conflated -- Dependabot updates the SHA and
+    # leaves the compiler alone. Keeping the ignore would freeze the pin.
