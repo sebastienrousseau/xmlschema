@@ -45,6 +45,30 @@ cargo doc --no-deps
 All four must pass. CI runs the same commands, so a green local run
 means a green pipeline.
 
+## Signing off your work
+
+Every commit must carry a `Signed-off-by` line. Add one automatically:
+
+```bash
+git commit -s
+```
+
+To sign off work you have already committed:
+
+```bash
+git rebase --signoff main
+```
+
+The line certifies the [Developer Certificate of
+Origin](DCO) — in short, that you wrote the change or have the right
+to submit it under this project's licence, and that your sign-off is
+part of a public record.
+
+This is checked in CI on every commit a pull request adds, because a
+requirement nothing verifies is a request. Bot commits are exempt:
+they cannot sign off, and demanding it of them would block every
+dependency update on a technicality.
+
 ## Commit messages
 
 [Conventional Commits](https://www.conventionalcommits.org/). The body
