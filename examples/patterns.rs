@@ -12,29 +12,31 @@
 use xmlschema::pattern::Pattern;
 
 fn main() {
-    let postcode =
-        Pattern::compile("[A-Z]{1,2}[0-9]{1,2}[A-Z]? ?[0-9][A-Z]{2}")
-            .expect("a well-formed pattern");
+    // A part number: two letters, a dash, four digits, and an
+    // optional revision letter.
+    let part_number = Pattern::compile("[A-Z]{2}-[0-9]{4}[A-Z]?")
+        .expect("a well-formed pattern");
 
     // The pattern keeps its source, which is what a diagnostic quotes.
-    println!("pattern: {}", postcode.source());
-    assert_eq!(
-        postcode.source(),
-        "[A-Z]{1,2}[0-9]{1,2}[A-Z]? ?[0-9][A-Z]{2}"
-    );
+    println!("pattern: {}", part_number.source());
+    assert_eq!(part_number.source(), "[A-Z]{2}-[0-9]{4}[A-Z]?");
 
-    for value in ["SW1A 1AA", "EC1A1BB"] {
-        println!("{value}: {}", postcode.matches(value));
-        assert!(postcode.matches(value));
+    for value in ["XY-0042", "AB-1234C"] {
+        println!("{value}: {}", part_number.matches(value));
+        assert!(part_number.matches(value));
     }
 
     // XSD patterns are anchored at both ends, so a value that merely
     // *contains* a match is not a match.
-    println!("`x SW1A 1AA`: {}", postcode.matches("x SW1A 1AA"));
-    assert!(!postcode.matches("x SW1A 1AA"));
+    println!("`part XY-0042`: {}", part_number.matches("part XY-0042"));
+    assert!(!part_number.matches("part XY-0042"));
     assert!(
-        !postcode.matches("sw1a 1aa"),
+        !part_number.matches("xy-0042"),
         "the character classes are upper case"
+    );
+    assert!(
+        !part_number.matches("XY-042"),
+        "the digit count is exact, not a minimum"
     );
 
     // Malformed syntax is reported rather than silently accepting
