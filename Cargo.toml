@@ -42,6 +42,18 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 name = "validate"
 path = "examples/validate.rs"
 
+[[example]]
+name = "datatypes"
+path = "examples/datatypes.rs"
+
+[[example]]
+name = "patterns"
+path = "examples/patterns.rs"
+
+[[example]]
+name = "restriction"
+path = "examples/restriction.rs"
+
 [[bench]]
 name = "schema"
 harness = false
