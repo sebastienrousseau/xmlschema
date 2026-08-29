@@ -52,11 +52,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # The example asserts rather than prints, so running it checks
-      # the API it demonstrates still behaves as documented. `cargo
+      # The examples assert rather than print, so running them checks
+      # the API they demonstrate still behaves as documented. `cargo
       # test` builds examples but never runs them, which reads as
       # coverage it is not.
-      - run: cargo run --example validate
+      #
+      # Discovered rather than listed: this job named `validate` alone,
+      # so an example added later would have been built and never run.
+      - name: Run every example, which asserts its own output
+        run: |
+          set -euo pipefail
+          cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; [print(t["name"]) for p in json.load(sys.stdin)["packages"] for t in p["targets"] if "example" in t["kind"]]' \
+            | while read -r name; do
+                echo "== $name"
+                cargo run -q --example "$name"
+              done
 
   dco:
     name: DCO sign-off
@@ -148,6 +159,24 @@ jobs:
       - run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+  example-coverage:
+    name: Examples cover the public API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # main
+        with:
+          tool: cargo-llvm-cov
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # The README says the examples cover the public API. That claim
+      # decays silently, so it is measured rather than trusted: every
+      # `pub fn` must be *executed* by an example, not merely mentioned.
+      - run: python3 scripts/check-example-coverage.py
 
   unsafe:
     name: Forbid unsafe
