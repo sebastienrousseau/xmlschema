@@ -3,7 +3,7 @@ members = ["conformance"]
 
 [package]
 name = "xmlschema"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 rust-version = "1.86.0"
 license = "MIT OR Apache-2.0"
@@ -30,7 +30,7 @@ include = [
 # `xpath` is required, not optional: an identity constraint's selector
 # and fields *are* XPath expressions, and XSD permits a restricted
 # subset that oxml's engine is a superset of.
-oxml = { version = "0.0.7", default-features = false, features = [
+oxml = { version = "0.0.8", default-features = false, features = [
     "std",
     "xpath",
 ] }
