@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.8] - 2026-08-29
+
+### Added
+
+- **The examples are measured against the public API.** The README
+  claimed the examples covered it; they reached 15 of 31 public
+  functions. Three examples close the gap -- datatype ordering and
+  comparison, `xs:pattern` compilation, and particles, restriction
+  and the reporting of constructs this crate does not enforce.
+
+  The `Examples` job also named one example explicitly, so any added
+  later was built and never run; it now discovers them.
+
+### Security
+
+- **`cargo audit` and `cargo deny` now actually run.** The Best
+  Practices badge stated they ran against the RustSec advisory
+  database. They did not.
+
+  This repository was the worst case, because it *carried* a
+  `deny.toml` -- which made the absence harder to see. That file was
+  dead twice over: no workflow invoked it, and it was written for
+  cargo-deny v1, whose `unlicensed`, `copyleft` and
+  `allow-osi-fsf-free` keys were removed in v2. Its `allow` list held
+  only `MPL-2.0`, so had it ever run against this crate's MIT/Apache
+  dependency tree it would have denied everything.
+
+- Every action pinned by commit SHA, branch coverage gated, CodeQL
+  added, and the Developer Certificate of Origin enforced.
+
 ## [0.0.7] - 2026-08-28
 
 ### Changed
