@@ -20,6 +20,16 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # The CodeQL sub-actions must all run the same version. Bumped
+    # separately -- which is what Dependabot does by default -- an
+    # `init` at v4 meets an `analyze` at v3 and the job fails with
+    # "Loaded a configuration file for version '4.x', but running
+    # version '3.x'". Grouping them makes one pull request that moves
+    # all three together.
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action*"
     ignore:
       # `dtolnay/rust-toolchain@1.98.0` is not an action version, it is
       # the *Rust toolchain* this project pins -- the same version in
