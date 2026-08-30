@@ -77,6 +77,13 @@ step "coverage 95%" cargo "+$TOOLCHAIN" llvm-cov --all-features --fail-under-lin
 # oxml-lsp, claiming tests over an `analyse()` it does not have; the
 # correction landed twelve minutes after the upload, and crates.io
 # versions cannot be edited afterwards.
+# Documented test counts against the suite that produces them. These
+# decayed everywhere at once: oxml stated three different totals in
+# three places, and oxml-mcp claimed 57 tests while having 40 because
+# the JSON tests left with the code. A count higher than reality is a
+# claim of coverage that does not exist.
+step "published figures" python3 scripts/check-figures.py
+
 step "package claims" python3 scripts/check-package.py
 
 step "MSRV $MSRV" cargo "+$MSRV" check --all-features
