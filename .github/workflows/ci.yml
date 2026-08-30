@@ -38,16 +38,37 @@ jobs:
       - run: cargo test --all-features
 
   msrv:
-    name: MSRV 1.86.0
+    name: MSRV
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Read rather than repeated. The version was written out three
+      # times -- here, in the job name, and in Cargo.toml -- and
+      # nothing kept them agreeing.
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          V=$(grep -m1 '^rust-version' Cargo.toml | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "checking against $V"
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
         with:
-          toolchain: 1.86.0
+          toolchain: ${{ steps.msrv.outputs.version }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # The manifest claims 1.86.0; nothing was checking that claim.
-      - run: cargo check --all-features
+      - name: Build on the stated minimum
+        # Without this the job compiled with 1.98.0, not 1.86.0:
+        # `rust-toolchain.toml` pins the newer compiler and overrides
+        # whatever the toolchain action installed. The job was green
+        # and proved nothing about the claim it exists to check.
+        #
+        # It has to be set on the step. Job-level `env` is evaluated
+        # before any step runs, so `steps.msrv.outputs` expands to
+        # empty there and fails the same way, silently.
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: |
+          rustc --version
+          cargo check --all-features
 
   examples:
     name: Examples
