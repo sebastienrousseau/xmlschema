@@ -49,7 +49,28 @@ def public_modules() -> set[str]:
     return {"lib.rs"} | {f"{n}.rs" for n in names}
 
 
+def cargo() -> str:
+    """Where cargo is, saying so plainly when it is nowhere.
+
+    A bare `cargo` is right on CI and in a normal shell, but a rustup
+    install puts the real binary in ~/.cargo/bin and a PATH that lost
+    that entry produces a FileNotFoundError traceback rather than a
+    sentence.
+    """
+    import os
+    import shutil
+
+    found = shutil.which(os.environ.get("CARGO", "cargo"))
+    if found:
+        return found
+    fallback = pathlib.Path.home() / ".cargo" / "bin" / "cargo"
+    if fallback.is_file():
+        return str(fallback)
+    sys.exit("cargo is not on PATH and ~/.cargo/bin/cargo does not exist")
+
+
 def run(*args: str) -> str:
+    args = (cargo(),) + args[1:] if args and args[0] == "cargo" else args
     proc = subprocess.run(
         args, cwd=ROOT, capture_output=True, text=True, check=False
     )
