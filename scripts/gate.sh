@@ -72,6 +72,13 @@ fi
 
 step "coverage 95%" cargo "+$TOOLCHAIN" llvm-cov --all-features --fail-under-lines 95 \
   --ignore-filename-regex 'builds/cargo/package'
+# What `cargo publish` would upload, and whether the assurance case in
+# it describes this crate. oxml-json 0.0.8 shipped one inherited from
+# oxml-lsp, claiming tests over an `analyse()` it does not have; the
+# correction landed twelve minutes after the upload, and crates.io
+# versions cannot be edited afterwards.
+step "package claims" python3 scripts/check-package.py
+
 step "MSRV $MSRV" cargo "+$MSRV" check --all-features
 
 echo
