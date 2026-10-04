@@ -2,7 +2,7 @@
 site_name: xmlschema
 site_description: >-
   Pure Rust W3C XML Schema (XSD) validation library with zero unsafe code.
-site_url: https://sebastienrousseau.github.io/xmlschema/
+site_url: https://schema.oxmllib.com/
 site_author: Sebastien Rousseau
 copyright: Copyright &copy; 2026 <a href="https://sebastienrousseau.com/" rel="author">Sebastien Rousseau</a>
 
