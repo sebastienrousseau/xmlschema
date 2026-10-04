@@ -40,6 +40,7 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+          cache-dependency-path: requirements-docs.txt
 
       - name: Install MkDocs Material
         run: pip install --require-hashes -r requirements-docs.txt
