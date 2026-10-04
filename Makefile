@@ -3,7 +3,7 @@
 
 CARGO ?= cargo
 
-.PHONY: all check clippy test fmt doc gate demo clean
+.PHONY: all check clippy test fmt doc docs docs-serve gate demo clean
 
 all: fmt check clippy test
 
@@ -21,6 +21,12 @@ fmt:
 
 doc:
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --no-deps --all-features
+
+docs: ## Build MkDocs documentation site
+	mkdocs build --clean
+
+docs-serve: ## Serve MkDocs documentation site locally
+	mkdocs serve
 
 demo: ## Generate terminal demo GIF using VHS
 	vhs .github/demo.tape

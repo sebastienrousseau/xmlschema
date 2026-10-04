@@ -17,3 +17,5 @@ fuzz/coverage/
 # seeds in fuzz/seeds/ are tracked; 3,096 machine-generated inputs
 # weighing 12 MB are not.
 fuzz/corpus/
+/site
+.cache
