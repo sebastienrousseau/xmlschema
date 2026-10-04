@@ -30,17 +30,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@7e38f4be18c39b85c13e5a593361c77508494f6c # master
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
 
       - name: Initialise CodeQL
-        uses: github/codeql-action/init@b96794f87a329d511ea6da56b26d3dbdf2bf9b59 # v4.38.0
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           languages: rust
           build-mode: none
 
       - name: Analyse
-        uses: github/codeql-action/analyze@b96794f87a329d511ea6da56b26d3dbdf2bf9b59 # v4.38.0
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           category: "/language:rust"
