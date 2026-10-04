@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.9] - 2026-10-04
+
+### Changed
+
+- **Upgrade to `oxml` 0.0.9.** Uses oxml 0.0.9's accelerated SWAR delimiter
+  scanning, entity validation memoization, and generational slot
+  recycling engine.
+
 ## [0.0.8] - 2026-08-29
 
 ### Added
