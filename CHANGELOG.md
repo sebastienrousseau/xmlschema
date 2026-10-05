@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.10] - 2026-10-05
+
+### Changed
+
+- **Ecosystem release cycle v0.0.10.** Begin next iteration cycle across the
+  entire lockstep suite.
+- **Documentation migration.** Migrated website and rendered manual to
+  `oxmllib.com/schema` (`oxmllib.github.io`) using the Lucid SSG theme.
+
 ## [0.0.9] - 2026-10-04
 
 ### Changed
