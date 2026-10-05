@@ -1,4 +1,4 @@
-#counts	pass=34142	fail=1800	panic=0	unsupported=3413	blocked=65	vacuous=2358	total=39420
+#counts	pass=34226	fail=1716	panic=0	unsupported=3413	blocked=65	vacuous=2358	total=39420
 MS-Regex2006-07-15	AlphabeticPresentationForms/AlphabeticPresentationForms	unsupported	
 MS-Regex2006-07-15	AlphabeticPresentationForms/AlphabeticPresentationForms.v	unsupported	
 MS-Regex2006-07-15	Arabic/Arabic	unsupported	
@@ -996,83 +996,6 @@ NIST2004-01-14	atomic-QName-minLength-4/NISTXML-SV-IV-atomic-QName-minLength-5-2
 NIST2004-01-14	atomic-QName-minLength-4/NISTXML-SV-IV-atomic-QName-minLength-5-3	fail	`urepository-that_file_and.many.` must be at least 64 characters, not 31
 NIST2004-01-14	atomic-QName-minLength-4/NISTXML-SV-IV-atomic-QName-minLength-5-4	fail	`fand.fed-to_is_fac:gand.will.as-the_enough_and` must be at least 64 characters, not 46
 NIST2004-01-14	atomic-QName-minLength-4/NISTXML-SV-IV-atomic-QName-minLength-5-5	fail	`yexecution.those.context-rich:_through_and_that-cross-referen` must be at least 64 characters, not 61
-NIST2004-01-14	atomic-base64Binary-length-1/NISTXML-SV-IV-atomic-base64Binary-length-2-1	fail	`cw==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length-1/NISTXML-SV-IV-atomic-base64Binary-length-2-2	fail	`aw==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length-1/NISTXML-SV-IV-atomic-base64Binary-length-2-3	fail	`cA==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length-1/NISTXML-SV-IV-atomic-base64Binary-length-2-4	fail	`dQ==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length-1/NISTXML-SV-IV-atomic-base64Binary-length-2-5	fail	`aw==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length-2/NISTXML-SV-IV-atomic-base64Binary-length-3-1	fail	`c3dqYWFmdml0dGZyeG9lanJsYWR3eHF4b3JuYm53ag==` must be exactly 31 characters, not 44
-NIST2004-01-14	atomic-base64Binary-length-2/NISTXML-SV-IV-atomic-base64Binary-length-3-2	fail	`YnRvYmlzZnFmcmhrcHB3eGJ1eXhmZ3l0aWtoZmVubg==` must be exactly 31 characters, not 44
-NIST2004-01-14	atomic-base64Binary-length-2/NISTXML-SV-IV-atomic-base64Binary-length-3-3	fail	`YWlnb3RqcmFoeWZ2eGJhZG5sdHBkYWV3aGxpaGRyYw==` must be exactly 31 characters, not 44
-NIST2004-01-14	atomic-base64Binary-length-2/NISTXML-SV-IV-atomic-base64Binary-length-3-4	fail	`YW13cHJpcmhwbmJuZW93cmpqaWdwbWxlaG53d2t5aw==` must be exactly 31 characters, not 44
-NIST2004-01-14	atomic-base64Binary-length-2/NISTXML-SV-IV-atomic-base64Binary-length-3-5	fail	`YXVoaGVnZXBic2Nzb3NveXVvbmd4eXNsZmh2aXdvbA==` must be exactly 31 characters, not 44
-NIST2004-01-14	atomic-base64Binary-length-3/NISTXML-SV-IV-atomic-base64Binary-length-4-1	fail	`c3dtdG9ka2lrbmhsZ2ZjYmV3b3BxdG1od2p4aWpnaWZsZm92d3d1cmF1cHBueGU=` must be exactly 47 characters, not 64
-NIST2004-01-14	atomic-base64Binary-length-3/NISTXML-SV-IV-atomic-base64Binary-length-4-2	fail	`bGFnaHhkd3F2dHRzcnFiY3Z4cWVubmxhZ3h5ZmV2aXhjZmFmdWVzZ2x0eWdqZmM=` must be exactly 47 characters, not 64
-NIST2004-01-14	atomic-base64Binary-length-3/NISTXML-SV-IV-atomic-base64Binary-length-4-3	fail	`ZGVmcGhiYWF2eWZkcHBxa3dncWhnZHNqd3N2am1nZGhnYXN4d2JwY21qc2h0c2Q=` must be exactly 47 characters, not 64
-NIST2004-01-14	atomic-base64Binary-length-3/NISTXML-SV-IV-atomic-base64Binary-length-4-4	fail	`cnFraW5sbG1ieXBrdXh4bXVndndkYWV4cWNhY3lkdGxwdXFlaHF3ZHl1dWhzZWQ=` must be exactly 47 characters, not 64
-NIST2004-01-14	atomic-base64Binary-length-3/NISTXML-SV-IV-atomic-base64Binary-length-4-5	fail	`aWFjYmdtY3Jia2tyZXByZHNxeGxnYWxwc2t5Y21qdWpmYnlldnNsbW10YmVpb24=` must be exactly 47 characters, not 64
-NIST2004-01-14	atomic-base64Binary-length-4/NISTXML-SV-IV-atomic-base64Binary-length-5-1	fail	`d3d4YW1iam5qeGNhbHBmaXhyaHZqcHRsbXRzbWJ1ZGxpd3R2Y2xuYm9yc2lxYnFuYWtnZHFjc2l4ZHZ1eWd2d3JqYmZtYnhtYnE=` must be exactly 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-length-4/NISTXML-SV-IV-atomic-base64Binary-length-5-2	fail	`dWhhZmNiZHl2b211aHJpa2FoeG5oZGdqYm1wZGNtd3Zxcmt2ZWV3bHNxb2RkY2hod29hYXJxcWZqbWVodmhvbXZocXdkdHhidXc=` must be exactly 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-length-4/NISTXML-SV-IV-atomic-base64Binary-length-5-3	fail	`YmV4YXZwZHZoc2h4bXdocHBxdmFndnN1dmlydnl5am1waWVzeGhnanl5bmdibmhhdmxkbnF1aGFpcXZ2amphb29rbnljYmpocmk=` must be exactly 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-length-4/NISTXML-SV-IV-atomic-base64Binary-length-5-4	fail	`cHhqY3Fqdmx4bGxpZGZveGpudGNhYWF5bmZxc3Nya3BvdHJuc25wYWNoYWZ2c29hYWRheGZnb3JleHJyc3FhZmRydXV5dmhnaWI=` must be exactly 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-length-4/NISTXML-SV-IV-atomic-base64Binary-length-5-5	fail	`ZWhzeGlja21qdHFzZmphaXRtZGNzdGlxYnFvZndpeHdpcGlqbmZhdHhtdmFpdm54b3draGphdndnZGV2dWhzYnhkdGN2bmdjaXE=` must be exactly 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-length/NISTXML-SV-IV-atomic-base64Binary-length-1-1	fail	`Yw==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length/NISTXML-SV-IV-atomic-base64Binary-length-1-2	fail	`eQ==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length/NISTXML-SV-IV-atomic-base64Binary-length-1-3	fail	`cw==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length/NISTXML-SV-IV-atomic-base64Binary-length-1-4	fail	`aQ==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-length/NISTXML-SV-IV-atomic-base64Binary-length-1-5	fail	`dQ==` must be exactly 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-maxLength-1/NISTXML-SV-IV-atomic-base64Binary-maxLength-2-4	fail	`YWR2eHdicnVzdmx3YW1tdnV2c3drZHVlbHBjb29vbHR3ZA==` must be at most 45 characters, not 48
-NIST2004-01-14	atomic-base64Binary-maxLength-1/NISTXML-SV-IV-atomic-base64Binary-maxLength-2-5	fail	`ZmNhYWNvY3l5a3d0bGF5bmRidHVvY2lmcmt5ZGdxcmtxcXNnZHlsZG94bmJ2` must be at most 45 characters, not 60
-NIST2004-01-14	atomic-base64Binary-maxLength-2/NISTXML-SV-IV-atomic-base64Binary-maxLength-3-4	fail	`ZHZtamxud2doaGNpZ3F0bGVxdXNlZGhucHh2anZtYmxia2Zwcm5sZg==` must be at most 54 characters, not 56
-NIST2004-01-14	atomic-base64Binary-maxLength-2/NISTXML-SV-IV-atomic-base64Binary-maxLength-3-5	fail	`cmp4c2NlYnRsc3d2d25ld2tld215eXNzdWVkdWp3ZGpwaWdsbWlhYnVxZ2l3Y2ZqZ2Nkb2o=` must be at most 54 characters, not 72
-NIST2004-01-14	atomic-base64Binary-maxLength-3/NISTXML-SV-IV-atomic-base64Binary-maxLength-4-4	fail	`Ymp4cmVva2R4dmJ4am9wbWdyc255Zm1mcWZpZ3VxZXJ3eHZ4ZmdrdnVmZmJmYQ==` must be at most 61 characters, not 64
-NIST2004-01-14	atomic-base64Binary-maxLength-3/NISTXML-SV-IV-atomic-base64Binary-maxLength-4-5	fail	`cW93dWRoa2pub2FtaWNkdmNldWF3ZXNnYm9taXR2eG93eG5uYmJxanJudXZ3ZHFldmhiZ3NoYXRndWtxaw==` must be at most 61 characters, not 84
-NIST2004-01-14	atomic-base64Binary-maxLength-4/NISTXML-SV-IV-atomic-base64Binary-maxLength-5-4	fail	`YmNnc3lqYmZvYnBscmhqamZraHZ5dndxZG90cnB1dXJuZWp0bnlzamx0ZWh5ZGxkcG1hY25hdg==` must be at most 74 characters, not 76
-NIST2004-01-14	atomic-base64Binary-maxLength-4/NISTXML-SV-IV-atomic-base64Binary-maxLength-5-5	fail	`aWN0YXJlam94am9yaWhybWhkaGFuY2Fza2FsaXFyZWhsa21qY2hnZWl0aWh0eGJvZGlyaWtmdXJicG14cmh5Z2x5eHF3Y2Focw==` must be at most 74 characters, not 100
-NIST2004-01-14	atomic-base64Binary-maxLength/NISTXML-SV-IV-atomic-base64Binary-maxLength-1-1	fail	`YQ==` must be at most 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-maxLength/NISTXML-SV-IV-atomic-base64Binary-maxLength-1-2	fail	`aA==` must be at most 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-maxLength/NISTXML-SV-IV-atomic-base64Binary-maxLength-1-3	fail	`Yw==` must be at most 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-maxLength/NISTXML-SV-IV-atomic-base64Binary-maxLength-1-4	fail	`aQ==` must be at most 1 characters, not 4
-NIST2004-01-14	atomic-base64Binary-maxLength/NISTXML-SV-IV-atomic-base64Binary-maxLength-1-5	fail	`ZA==` must be at most 1 characters, not 4
-NIST2004-01-14	atomic-hexBinary-length-1/NISTXML-SV-IV-atomic-hexBinary-length-2-1	fail	`73756e6d646279637070646378667371` must be exactly 16 characters, not 32
-NIST2004-01-14	atomic-hexBinary-length-1/NISTXML-SV-IV-atomic-hexBinary-length-2-2	fail	`696a7372617365727177786e76626274` must be exactly 16 characters, not 32
-NIST2004-01-14	atomic-hexBinary-length-1/NISTXML-SV-IV-atomic-hexBinary-length-2-3	fail	`6e67676f66736a677468677077746668` must be exactly 16 characters, not 32
-NIST2004-01-14	atomic-hexBinary-length-1/NISTXML-SV-IV-atomic-hexBinary-length-2-4	fail	`616c6b6b636377696e7265646e6e7678` must be exactly 16 characters, not 32
-NIST2004-01-14	atomic-hexBinary-length-1/NISTXML-SV-IV-atomic-hexBinary-length-2-5	fail	`6c777676726b78736e61736a64766973` must be exactly 16 characters, not 32
-NIST2004-01-14	atomic-hexBinary-length-2/NISTXML-SV-IV-atomic-hexBinary-length-3-1	fail	`776c6a7870627864747264616e76637377706464696c736e6a637372756c736c696a66786c65796e6f` must be exactly 41 characters, not 82
-NIST2004-01-14	atomic-hexBinary-length-2/NISTXML-SV-IV-atomic-hexBinary-length-3-2	fail	`6e7066747876756f6e71636d6a65656a746278707574706c6f7872746370676268686f6e7979767670` must be exactly 41 characters, not 82
-NIST2004-01-14	atomic-hexBinary-length-2/NISTXML-SV-IV-atomic-hexBinary-length-3-3	fail	`7976726a686e70676d756a786c67756367667672747563767563797375706c6e7263796c6d796f746f` must be exactly 41 characters, not 82
-NIST2004-01-14	atomic-hexBinary-length-2/NISTXML-SV-IV-atomic-hexBinary-length-3-4	fail	`74626c6575637874666f62716b6d7377636a7673626f70676a656e6f7862646569756d6b616d617972` must be exactly 41 characters, not 82
-NIST2004-01-14	atomic-hexBinary-length-2/NISTXML-SV-IV-atomic-hexBinary-length-3-5	fail	`6f7470776c63616d6771636e756c6e716f64736f62677868726672736e77766d6d7272646562766365` must be exactly 41 characters, not 82
-NIST2004-01-14	atomic-hexBinary-length-3/NISTXML-SV-IV-atomic-hexBinary-length-4-1	fail	`61647361677962727668716261676e776777676764666a697478706f656f6d646d72696f7474796b74627672716470636d71617073617767626e697569746164776d6870` must be exactly 68 characters, not 136
-NIST2004-01-14	atomic-hexBinary-length-3/NISTXML-SV-IV-atomic-hexBinary-length-4-2	fail	`6c71686d646d64687679646a686761737563666f696f73696f63787976696267706763616d786d647170767470706466726169636d7161716e78786974796a7767726565` must be exactly 68 characters, not 136
-NIST2004-01-14	atomic-hexBinary-length-3/NISTXML-SV-IV-atomic-hexBinary-length-4-3	fail	`7675776d67747075716a677377686d6c6c617768616a77786574657972656973646e6c6a626c757172717374757576776b7968766d6d736875776d6273696e79636b7663` must be exactly 68 characters, not 136
-NIST2004-01-14	atomic-hexBinary-length-3/NISTXML-SV-IV-atomic-hexBinary-length-4-4	fail	`68637564617068786a696a6762686c6c6d74776b7273647564656e726372666c6e6c63636c6e77787870616a6966656971746f74746f6572787870726d6874776f786268` must be exactly 68 characters, not 136
-NIST2004-01-14	atomic-hexBinary-length-3/NISTXML-SV-IV-atomic-hexBinary-length-4-5	fail	`7262656f6e6c6467666a6f7568676f746668756f6f6f716766666a63736a7265687273676b636663756472696567686678736f7074636b67666f71736272756170706467` must be exactly 68 characters, not 136
-NIST2004-01-14	atomic-hexBinary-length-4/NISTXML-SV-IV-atomic-hexBinary-length-5-1	fail	`71617165766675796f7077626377736e796f62757475776a6363686e6570727665706379666c6d637074756e647075637775616871676161746b786a65687867616e747874786b617170` must be exactly 74 characters, not 148
-NIST2004-01-14	atomic-hexBinary-length-4/NISTXML-SV-IV-atomic-hexBinary-length-5-2	fail	`6f6d636d71766b6679676b6e7169727276636a747961716464797066626d6474707671616a61707163796e75706f6561646b64676a6e7778746c6b7874767063706a6976777065767577` must be exactly 74 characters, not 148
-NIST2004-01-14	atomic-hexBinary-length-4/NISTXML-SV-IV-atomic-hexBinary-length-5-3	fail	`787372716871736f6f616178707273707874687562696177616f6c637677686e72636d676f6a6b786c776e64666d7378796679656a64706d676d72616d7973746668736b65626964716e` must be exactly 74 characters, not 148
-NIST2004-01-14	atomic-hexBinary-length-4/NISTXML-SV-IV-atomic-hexBinary-length-5-4	fail	`7367786779776e6476666369717977766e76796f6e79636d706a686d6b616a676a6272687979646775776e6863776b62746a706f77726672706e78716a666f626476776674756b786f6e` must be exactly 74 characters, not 148
-NIST2004-01-14	atomic-hexBinary-length-4/NISTXML-SV-IV-atomic-hexBinary-length-5-5	fail	`6174786a656d70627377707072676773717375746676787272646975616b71766a73646f6a696f736f67616f746a6e7272626b616b636d6b706469767574757772736a64726e716f6765` must be exactly 74 characters, not 148
-NIST2004-01-14	atomic-hexBinary-length/NISTXML-SV-IV-atomic-hexBinary-length-1-1	fail	`63` must be exactly 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-length/NISTXML-SV-IV-atomic-hexBinary-length-1-2	fail	`77` must be exactly 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-length/NISTXML-SV-IV-atomic-hexBinary-length-1-3	fail	`78` must be exactly 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-length/NISTXML-SV-IV-atomic-hexBinary-length-1-4	fail	`77` must be exactly 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-length/NISTXML-SV-IV-atomic-hexBinary-length-1-5	fail	`65` must be exactly 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-maxLength-1/NISTXML-SV-IV-atomic-hexBinary-maxLength-2-3	fail	`6f7774697171766977747769697065` must be at most 29 characters, not 30
-NIST2004-01-14	atomic-hexBinary-maxLength-1/NISTXML-SV-IV-atomic-hexBinary-maxLength-2-4	fail	`686e75626463777362686a726472747078746d656f75` must be at most 29 characters, not 44
-NIST2004-01-14	atomic-hexBinary-maxLength-1/NISTXML-SV-IV-atomic-hexBinary-maxLength-2-5	fail	`767261756d6e6f726f707462687963777068676870786c6277756c686a` must be at most 29 characters, not 58
-NIST2004-01-14	atomic-hexBinary-maxLength-2/NISTXML-SV-IV-atomic-hexBinary-maxLength-3-4	fail	`66646c68` must be at most 7 characters, not 8
-NIST2004-01-14	atomic-hexBinary-maxLength-2/NISTXML-SV-IV-atomic-hexBinary-maxLength-3-5	fail	`7676726d68` must be at most 7 characters, not 10
-NIST2004-01-14	atomic-hexBinary-maxLength-3/NISTXML-SV-IV-atomic-hexBinary-maxLength-4-4	fail	`79757774` must be at most 6 characters, not 8
-NIST2004-01-14	atomic-hexBinary-maxLength-3/NISTXML-SV-IV-atomic-hexBinary-maxLength-4-5	fail	`6e6e6a666f` must be at most 6 characters, not 10
-NIST2004-01-14	atomic-hexBinary-maxLength-4/NISTXML-SV-IV-atomic-hexBinary-maxLength-5-4	fail	`6362696e6a666e6871726f657373756a71656e796470756866756765766a70706172696264687763716e77776276686876676e736a7762` must be at most 74 characters, not 110
-NIST2004-01-14	atomic-hexBinary-maxLength-4/NISTXML-SV-IV-atomic-hexBinary-maxLength-5-5	fail	`696e6d6f6f72706c7170666269637373746d736c6b746e75666e6b72626167766d70646371726f6a636173786c70627274636971786c6a78706e6a726574636b6c6f6b676871677073` must be at most 74 characters, not 146
-NIST2004-01-14	atomic-hexBinary-maxLength/NISTXML-SV-IV-atomic-hexBinary-maxLength-1-1	fail	`71` must be at most 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-maxLength/NISTXML-SV-IV-atomic-hexBinary-maxLength-1-2	fail	`76` must be at most 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-maxLength/NISTXML-SV-IV-atomic-hexBinary-maxLength-1-3	fail	`77` must be at most 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-maxLength/NISTXML-SV-IV-atomic-hexBinary-maxLength-1-4	fail	`67` must be at most 1 characters, not 2
-NIST2004-01-14	atomic-hexBinary-maxLength/NISTXML-SV-IV-atomic-hexBinary-maxLength-1-5	fail	`79` must be at most 1 characters, not 2
 MS-Attribute2006-07-15	attA001/attA001	unsupported	
 MS-Attribute2006-07-15	attA002/attA002	unsupported	
 MS-Attribute2006-07-15	attA003/attA003	unsupported	
@@ -1402,10 +1325,8 @@ MS-AttributeGroup2006-07-15	attgZ002/attgZ002	unsupported
 MS-AttributeGroup2006-07-15	attgZ003/attgZ003	unsupported	
 AttrUse	au_attrdecl00101m1_n/AU_attrDecl00101m1_n	fail	
 AttrUse	au_required00101m1/Negative	fail	
-MS-DataTypes2006-07-15	base64Binary_length002_1310/base64Binary_length002_1310.v	fail	`MS0yLTM=` must be exactly 5 characters, not 8
 MS-DataTypes2006-07-15	base64Binary_length006_241/base64Binary_length006_241	fail	
 MS-DataTypes2006-07-15	base64Binary_length007_242/base64Binary_length007_242	fail	
-MS-DataTypes2006-07-15	base64Binary_minLength004_1315/base64Binary_minLength004_1315.v	fail	`MS0yLTM=` must be at most 6 characters, not 8
 MS-DataTypes2006-07-15	base64Binary_minLength006_248/base64Binary_minLength006_248	fail	
 MS-DataTypes2006-07-15	byte_fractionDigits004_806/byte_fractionDigits004_806	fail	
 MS-DataTypes2006-07-15	byte_fractionDigits007_809/byte_fractionDigits007_809	fail	
@@ -1748,8 +1669,6 @@ MS-ComplexType2006-07-15	ctZ013c/ctZ013c	unsupported
 MS-ComplexType2006-07-15	ctZ013d/ctZ013d	unsupported	
 MS-ComplexType2006-07-15	ctZ013e/ctZ013e	unsupported	
 MS-DataTypes2006-07-15	dateTime013_2009/dateTime013_2009.i	fail	
-MS-DataTypes2006-07-15	dateTime_enumeration005a_1129/dateTime_enumeration005a_1129.v	fail	`2002-01-01T12:01:01+00:00` is not one of the permitted values (2002-01-01T12:01:01-00:00)
-MS-DataTypes2006-07-15	dateTime_enumeration005b_1130/dateTime_enumeration005b_1130.v	fail	`2002-01-01T12:01:01Z` is not one of the permitted values (2002-01-01T12:01:01-00:00)
 MS-DataTypes2006-07-15	dateTime_maxInclusive003_103/dateTime_maxInclusive003_103	fail	
 MS-DataTypes2006-07-15	dateTime_minExclusive003_112/dateTime_minExclusive003_112	fail	
 MS-DataTypes2006-07-15	dateTime_minInclusive003_109/dateTime_minInclusive003_109	fail	
@@ -2367,11 +2286,8 @@ MS-Group2006-07-15	groupO025/groupO025	fail
 MS-Group2006-07-15	groupO026/groupO026	fail	
 MS-Group2006-07-15	groupO027/groupO027	fail	
 MS-DataTypes2006-07-15	hexBinary003_2069/hexBinary003_2069.v	fail	`ab cd` is not a valid hexBinary
-MS-DataTypes2006-07-15	hexBinary_length002_1296/hexBinary_length002_1296.v	fail	`abcdefabcd` must be exactly 5 characters, not 10
 MS-DataTypes2006-07-15	hexBinary_length006_220/hexBinary_length006_220	fail	
 MS-DataTypes2006-07-15	hexBinary_length007_221/hexBinary_length007_221	fail	
-MS-DataTypes2006-07-15	hexBinary_maxLength001_1302/hexBinary_maxLength001_1302.v	fail	`abcdef` must be at most 4 characters, not 6
-MS-DataTypes2006-07-15	hexBinary_minLength004_1301/hexBinary_minLength004_1301.v	fail	`abcdef1234` must be at most 6 characters, not 10
 MS-DataTypes2006-07-15	hexBinary_minLength006_227/hexBinary_minLength006_227	fail	
 MS-IdentityConstraint2006-07-15	idA005/idA005	unsupported	
 MS-IdentityConstraint2006-07-15	idA015/idA015	unsupported	

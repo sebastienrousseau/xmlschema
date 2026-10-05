@@ -78,8 +78,8 @@
 | Schema validity | ✅ XSD's own structural rules |
 | `xs:pattern` | ✅ own engine, XSD dialect including class subtraction |
 | Diagnostics | ✅ every violation, each with a path |
-| Conformance | ✅ **95.0%** of the W3C suite's decided tests, ratcheted |
-| Tests | ✅ 236, plus the conformance suite |
+| Conformance | ✅ **95.2%** of the W3C suite's decided tests, ratcheted |
+| Tests | ✅ 241, plus the conformance suite |
 | Identity constraints (`key`, `keyref`, `unique`) | ✗ |
 | `xs:import` / `include` | ✗ |
 | Substitution groups | ✗ |
@@ -179,7 +179,7 @@ entirely different under a name they already depend on.
 
 | Crate | XSD validation | Pure Rust | WASM | Status |
 |---|---|---|---|---|
-| **`xmlschema`** | ✅ 95.0% of the W3C suite's decided tests | ✅ | ✅ | active |
+| **`xmlschema`** | ✅ 95.2% of the W3C suite's decided tests | ✅ | ✅ | active |
 | `libxml` | ✅ | ✗ (C-FFI) | ✗ | active |
 | `quick-xml` | ✗ | ✅ | ✅ | active |
 | `roxmltree` | ✗ | ✅ | ✅ | active |
@@ -361,13 +361,13 @@ schema-for-schemas, which would be a second validator.
 
 ### How is this tested?
 
-236 tests over schema parsing, every built-in type, every facet, the
+241 tests over schema parsing, every built-in type, every facet, the
 pattern engine, the validator and the derivation relation. The XML
 underneath carries the W3C XML conformance suite — 2,557 of 2,557
 decided tests, zero panics.
 
 **And the W3C XML Schema Test Suite**, `xsts-2007-06-20`, pinned by
-SHA-256: **39,420 tests**, of which 95.0% of the decided ones pass,
+SHA-256: **39,420 tests**, of which 95.2% of the decided ones pass,
 with zero panics. This was the main gap in the crate's verification
 until 0.0.6, and closing it is most of what 0.0.6 is.
 

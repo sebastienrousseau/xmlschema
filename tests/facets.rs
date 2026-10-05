@@ -435,3 +435,67 @@ fn built_in_list_types_count_items_not_characters() {
     assert!(!accepts("abcd"), "one item is fewer than two");
     assert!(!accepts("a b c d"), "four items is more than three");
 }
+
+/// `xs:hexBinary` measures length in octets (2 hex digits = 1 octet).
+#[test]
+fn hex_binary_length_counts_octets() {
+    let s = restricted("xs:hexBinary", r#"<xs:length value="3"/>"#);
+    // 6 hex characters = 3 octets
+    assert!(accepts(&s, "abcdef"));
+    assert!(accepts(&s, "ABCDEF"));
+    // 4 hex characters = 2 octets
+    assert!(!accepts(&s, "abcd"));
+    // 8 hex characters = 4 octets
+    assert!(!accepts(&s, "abcdef01"));
+}
+
+/// `xs:base64Binary` measures length in octets of decoded binary data.
+#[test]
+fn base64_binary_length_counts_octets() {
+    // "1-2-3" is 5 bytes, encoded as "MS0yLTM=" (8 base64 chars with 1 padding char)
+    let s = restricted("xs:base64Binary", r#"<xs:length value="5"/>"#);
+    assert!(accepts(&s, "MS0yLTM="));
+    // "1-2" is 3 bytes, encoded as "MS0y" (4 base64 chars)
+    assert!(!accepts(&s, "MS0y"));
+}
+
+/// Numeric enumerations compare in the value space rather than string equality.
+#[test]
+fn numeric_enumeration_compares_in_value_space() {
+    let s = restricted(
+        "xs:integer",
+        r#"<xs:enumeration value="1"/><xs:enumeration value="100"/>"#,
+    );
+    assert!(accepts(&s, "1"));
+    assert!(
+        accepts(&s, "01"),
+        "leading zeros do not change integer value"
+    );
+    assert!(
+        accepts(&s, "+1"),
+        "explicit plus does not change integer value"
+    );
+    assert!(accepts(&s, "00100"));
+    assert!(!accepts(&s, "2"));
+    assert!(!accepts(&s, "10"));
+}
+
+/// Boolean enumerations compare in the value space (`true`/`1` and `false`/`0`).
+#[test]
+fn boolean_enumeration_compares_in_value_space() {
+    let s = restricted("xs:boolean", r#"<xs:enumeration value="true"/>"#);
+    assert!(accepts(&s, "true"));
+    assert!(accepts(&s, "1"), "1 is true in boolean value space");
+    assert!(!accepts(&s, "false"));
+    assert!(!accepts(&s, "0"));
+}
+
+/// `HexBinary` enumerations compare in the value space (case-insensitive).
+#[test]
+fn hex_binary_enumeration_is_case_insensitive() {
+    let s = restricted("xs:hexBinary", r#"<xs:enumeration value="ab"/>"#);
+    assert!(accepts(&s, "ab"));
+    assert!(accepts(&s, "AB"));
+    assert!(accepts(&s, "Ab"));
+    assert!(!accepts(&s, "cd"));
+}
