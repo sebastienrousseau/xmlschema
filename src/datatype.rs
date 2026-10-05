@@ -486,6 +486,84 @@ impl Datatype {
             _ => return None,
         })
     }
+
+    /// Compare two values in the value space of this datatype.
+    ///
+    /// Values that differ in lexical representation but represent the same
+    /// value in the value space — such as `"1"` and `"01"` for numeric types,
+    /// `"true"` and `"1"` for boolean, or `"ab"` and `"AB"` for hexBinary —
+    /// are considered equal.
+    #[must_use]
+    pub fn values_equal(self, a: &str, b: &str) -> bool {
+        let (a, b) = (self.normalise(a), self.normalise(b));
+        if a == b {
+            return true;
+        }
+        if self.is_ordered() {
+            return self.compare(&a, &b) == Some(core::cmp::Ordering::Equal);
+        }
+        match self {
+            Self::Boolean => {
+                let to_bool = |v: &str| match v {
+                    "true" | "1" => Some(true),
+                    "false" | "0" => Some(false),
+                    _ => None,
+                };
+                match (to_bool(&a), to_bool(&b)) {
+                    (Some(x), Some(y)) => x == y,
+                    _ => false,
+                }
+            }
+            Self::HexBinary => {
+                if !self.accepts_normalised(&a) || !self.accepts_normalised(&b)
+                {
+                    return false;
+                }
+                a.eq_ignore_ascii_case(&b)
+            }
+            Self::Base64Binary => {
+                if !self.accepts_normalised(&a) || !self.accepts_normalised(&b)
+                {
+                    return false;
+                }
+                let strip = |s: &str| {
+                    s.chars().filter(|c| !is_xml_space(*c)).collect::<String>()
+                };
+                strip(&a) == strip(&b)
+            }
+            _ => false,
+        }
+    }
+
+    /// The length of a value in this datatype's units.
+    ///
+    /// For binary types (`xs:hexBinary`, `xs:base64Binary`), length is measured
+    /// in octets of binary data. For all other types, length is measured in
+    /// Unicode characters.
+    #[must_use]
+    pub fn value_length(self, raw: &str) -> usize {
+        let v = self.normalise(raw);
+        match self {
+            Self::HexBinary => {
+                let clean_len = v.chars().filter(|c| !is_xml_space(*c)).count();
+                clean_len / 2
+            }
+            Self::Base64Binary => {
+                let clean: Vec<u8> =
+                    v.bytes().filter(|b| !is_xml_space(*b as char)).collect();
+                if clean.len() % 4 != 0 || clean.is_empty() {
+                    return 0;
+                }
+                let padding = if clean.ends_with(b"==") {
+                    2
+                } else {
+                    usize::from(clean.ends_with(b"="))
+                };
+                (clean.len() / 4) * 3 - padding
+            }
+            _ => v.chars().count(),
+        }
+    }
 }
 
 /// `YYYY-MM-DD` as seconds from a fixed epoch.

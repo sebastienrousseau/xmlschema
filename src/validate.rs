@@ -840,17 +840,24 @@ fn check_facets(
     if facets.is_empty() {
         return Ok(());
     }
-    check_enumeration(value, facets)?;
-    check_length(value, facets)?;
+    check_enumeration(value, facets, base)?;
+    check_length(value, facets, base)?;
     check_pattern(value, facets)?;
     check_digits(value, facets)?;
     check_bounds(value, facets, base)
 }
 
-/// `xs:enumeration` — the value must be one of a fixed set.
-fn check_enumeration(value: &str, facets: &Facets) -> Result<(), String> {
+/// `xs:enumeration` — the value must be one of a fixed set in the value space.
+fn check_enumeration(
+    value: &str,
+    facets: &Facets,
+    base: BuiltIn,
+) -> Result<(), String> {
     if facets.enumeration.is_empty()
-        || facets.enumeration.iter().any(|e| e == value)
+        || facets
+            .enumeration
+            .iter()
+            .any(|e| base.values_equal(e, value))
     {
         return Ok(());
     }
@@ -860,30 +867,39 @@ fn check_enumeration(value: &str, facets: &Facets) -> Result<(), String> {
     ))
 }
 
-/// `xs:length` and its bounds, counted in characters.
+/// `xs:length` and its bounds, counted in characters or octets.
 ///
-/// Characters rather than bytes, so a multi-byte value is not
-/// measured as longer than it is.
-fn check_length(value: &str, facets: &Facets) -> Result<(), String> {
-    let len = value.chars().count();
+/// Binary types (`xs:hexBinary`, `xs:base64Binary`) count octets of
+/// binary data; all other types count Unicode characters.
+fn check_length(
+    value: &str,
+    facets: &Facets,
+    base: BuiltIn,
+) -> Result<(), String> {
+    let len = base.value_length(value);
+    let unit = if matches!(base, BuiltIn::HexBinary | BuiltIn::Base64Binary) {
+        "octets"
+    } else {
+        "characters"
+    };
     if let Some(want) = facets.length {
         if len != want {
             return Err(format!(
-                "`{value}` must be exactly {want} characters, not {len}"
+                "`{value}` must be exactly {want} {unit}, not {len}"
             ));
         }
     }
     if let Some(min) = facets.min_length {
         if len < min {
             return Err(format!(
-                "`{value}` must be at least {min} characters, not {len}"
+                "`{value}` must be at least {min} {unit}, not {len}"
             ));
         }
     }
     if let Some(max) = facets.max_length {
         if len > max {
             return Err(format!(
-                "`{value}` must be at most {max} characters, not {len}"
+                "`{value}` must be at most {max} {unit}, not {len}"
             ));
         }
     }

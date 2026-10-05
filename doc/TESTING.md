@@ -8,7 +8,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo run --example validate
 ```
 
-236 tests over schema parsing, every built-in simple type, every
+241 tests over schema parsing, every built-in simple type, every
 restriction facet, the pattern engine, the validator's content models
 and cardinality, and the derivation relation.
 
