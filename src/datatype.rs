@@ -494,7 +494,7 @@ impl Datatype {
     /// `"true"` and `"1"` for boolean, or `"ab"` and `"AB"` for hexBinary —
     /// are considered equal.
     #[must_use]
-    pub fn values_equal(self, a: &str, b: &str) -> bool {
+    pub(crate) fn values_equal(self, a: &str, b: &str) -> bool {
         let (a, b) = (self.normalise(a), self.normalise(b));
         if a == b {
             return true;
@@ -541,7 +541,7 @@ impl Datatype {
     /// in octets of binary data. For all other types, length is measured in
     /// Unicode characters.
     #[must_use]
-    pub fn value_length(self, raw: &str) -> usize {
+    pub(crate) fn value_length(self, raw: &str) -> usize {
         let v = self.normalise(raw);
         match self {
             Self::HexBinary => {
