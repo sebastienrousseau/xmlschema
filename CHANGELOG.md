@@ -12,6 +12,9 @@ suite ships the same version number.
 
 ### Changed
 
+- **Upgrade to `oxml` 0.0.10.** Identity-constraint selectors and fields
+  evaluate with per-context predicates, as XPath 1.0 specifies; a selector
+  such as `.//row/cell[1]` now matches one cell per row.
 - **Ecosystem release cycle v0.0.10.** Begin next iteration cycle across the
   entire lockstep suite.
 - **Documentation migration.** Migrated website and rendered manual to
