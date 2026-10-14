@@ -8,7 +8,7 @@ description = "The W3C XML Schema Test Suite, run against xmlschema."
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-oxml = "0.0.9"
+oxml = "0.0.10"
 xmlschema = { path = ".." }
 
 [lints.clippy]
