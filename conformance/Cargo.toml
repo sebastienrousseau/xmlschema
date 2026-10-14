@@ -2,7 +2,7 @@
 name = "xmlschema-conformance"
 version = "0.0.9"
 edition = "2024"
-rust-version = "1.86.0"
+rust-version = "1.89.0"
 publish = false
 description = "The W3C XML Schema Test Suite, run against xmlschema."
 license = "MIT OR Apache-2.0"

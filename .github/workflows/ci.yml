@@ -55,6 +55,11 @@ jobs:
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: The MSRV toolchain is the one in use
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+          WANT: ${{ steps.msrv.outputs.version }}
+        run: rustc --version | grep -F "rustc ${WANT} "
       - name: Build on the stated minimum
         # Without this the job compiled with 1.98.0, not 1.86.0:
         # `rust-toolchain.toml` pins the newer compiler and overrides

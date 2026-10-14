@@ -23,7 +23,7 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # how a clippy lint that exists in 1.98 and not in 1.97 made a green
 # local run and a red CI one.
 export TOOLCHAIN="${XMLSCHEMA_TOOLCHAIN:-1.98.0}"
-MSRV="${XMLSCHEMA_MSRV:-1.86.0}"
+MSRV="${XMLSCHEMA_MSRV:-1.89.0}"
 # CI sets this for every job, so a warning there is a failure. Setting
 # it here is what makes this script predict CI rather than approximate
 # it.

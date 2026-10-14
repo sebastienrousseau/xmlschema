@@ -355,29 +355,29 @@ impl Validator<'_> {
         // declare. Without it, undeclared attributes are simply not
         // reported by this validator either way -- but with a strict
         // one they must have a top-level declaration.
-        if let Some(wildcard) = decl.any_attribute.as_ref() {
-            if wildcard.process == ProcessContents::Strict {
-                for &attr in self.doc.attribute_nodes(node) {
-                    let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
-                        continue;
-                    };
-                    let Some(name) = self.doc.name(a.name) else {
-                        continue;
-                    };
-                    let local = name.local.clone();
-                    // `xsi:` attributes are defined by the schema
-                    // instance namespace, not by this schema.
-                    if name.namespace.as_deref() == Some(XSI) {
-                        continue;
-                    }
-                    if decl.attributes.iter().all(|d| d.name != local) {
-                        self.violate(
-                            &format!("{path}/@{local}"),
-                            "matched a strict wildcard but has no \
+        if let Some(wildcard) = decl.any_attribute.as_ref()
+            && wildcard.process == ProcessContents::Strict
+        {
+            for &attr in self.doc.attribute_nodes(node) {
+                let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
+                    continue;
+                };
+                let Some(name) = self.doc.name(a.name) else {
+                    continue;
+                };
+                let local = name.local.clone();
+                // `xsi:` attributes are defined by the schema
+                // instance namespace, not by this schema.
+                if name.namespace.as_deref() == Some(XSI) {
+                    continue;
+                }
+                if decl.attributes.iter().all(|d| d.name != local) {
+                    self.violate(
+                        &format!("{path}/@{local}"),
+                        "matched a strict wildcard but has no \
                              declaration"
-                                .to_owned(),
-                        );
-                    }
+                            .to_owned(),
+                    );
                 }
             }
         }
@@ -396,16 +396,16 @@ impl Validator<'_> {
                     }
                     // A fixed value is not a default: if the attribute
                     // appears at all, it must be exactly this.
-                    if let Some(fixed) = want.fixed.as_deref() {
-                        if value != fixed {
-                            self.violate(
-                                &format!("{path}/@{}", want.name),
-                                format!(
-                                    "must be the fixed value `{fixed}`, \
+                    if let Some(fixed) = want.fixed.as_deref()
+                        && value != fixed
+                    {
+                        self.violate(
+                            &format!("{path}/@{}", want.name),
+                            format!(
+                                "must be the fixed value `{fixed}`, \
                                      not `{value}`"
-                                ),
-                            );
-                        }
+                            ),
+                        );
                     }
                 }
                 None if want.required => {
@@ -723,32 +723,32 @@ fn check_list(
             .map_err(|e| format!("`{one}` is not a valid list item: {e}"))?;
     }
     let n = items.len();
-    if let Some(want) = facets.length {
-        if n != want {
-            return Err(format!("the list has {n} items, not {want}"));
-        }
+    if let Some(want) = facets.length
+        && n != want
+    {
+        return Err(format!("the list has {n} items, not {want}"));
     }
-    if let Some(min) = facets.min_length {
-        if n < min {
-            return Err(format!("the list has {n} items, fewer than {min}"));
-        }
+    if let Some(min) = facets.min_length
+        && n < min
+    {
+        return Err(format!("the list has {n} items, fewer than {min}"));
     }
-    if let Some(max) = facets.max_length {
-        if n > max {
-            return Err(format!("the list has {n} items, more than {max}"));
-        }
+    if let Some(max) = facets.max_length
+        && n > max
+    {
+        return Err(format!("the list has {n} items, more than {max}"));
     }
     // A pattern on a list applies to the *whole* space-separated
     // lexical form, not to each item. It was not applied at all,
     // which left every `list-<type>-pattern` schema in the suite --
     // some five hundred tests -- accepting anything.
-    if let Some(pattern) = facets.pattern.as_ref() {
-        if !pattern.matches(value) {
-            return Err(format!(
-                "`{value}` does not match the pattern `{}`",
-                pattern.source()
-            ));
-        }
+    if let Some(pattern) = facets.pattern.as_ref()
+        && !pattern.matches(value)
+    {
+        return Err(format!(
+            "`{value}` does not match the pattern `{}`",
+            pattern.source()
+        ));
     }
 
     // An enumeration on a list constrains the whole space-separated
@@ -882,26 +882,26 @@ fn check_length(
     } else {
         "characters"
     };
-    if let Some(want) = facets.length {
-        if len != want {
-            return Err(format!(
-                "`{value}` must be exactly {want} {unit}, not {len}"
-            ));
-        }
+    if let Some(want) = facets.length
+        && len != want
+    {
+        return Err(format!(
+            "`{value}` must be exactly {want} {unit}, not {len}"
+        ));
     }
-    if let Some(min) = facets.min_length {
-        if len < min {
-            return Err(format!(
-                "`{value}` must be at least {min} {unit}, not {len}"
-            ));
-        }
+    if let Some(min) = facets.min_length
+        && len < min
+    {
+        return Err(format!(
+            "`{value}` must be at least {min} {unit}, not {len}"
+        ));
     }
-    if let Some(max) = facets.max_length {
-        if len > max {
-            return Err(format!(
-                "`{value}` must be at most {max} {unit}, not {len}"
-            ));
-        }
+    if let Some(max) = facets.max_length
+        && len > max
+    {
+        return Err(format!(
+            "`{value}` must be at most {max} {unit}, not {len}"
+        ));
     }
     Ok(())
 }
@@ -930,19 +930,19 @@ fn check_digits(value: &str, facets: &Facets) -> Result<(), String> {
         return Ok(());
     }
     let (total, fraction) = digit_counts(value);
-    if let Some(max) = facets.total_digits {
-        if total > max {
-            return Err(format!(
-                "{value} has {total} significant digits, more than {max}"
-            ));
-        }
+    if let Some(max) = facets.total_digits
+        && total > max
+    {
+        return Err(format!(
+            "{value} has {total} significant digits, more than {max}"
+        ));
     }
-    if let Some(max) = facets.fraction_digits {
-        if fraction > max {
-            return Err(format!(
-                "{value} has {fraction} fraction digits, more than {max}"
-            ));
-        }
+    if let Some(max) = facets.fraction_digits
+        && fraction > max
+    {
+        return Err(format!(
+            "{value} has {fraction} fraction digits, more than {max}"
+        ));
     }
     Ok(())
 }
