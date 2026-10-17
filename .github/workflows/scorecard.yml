@@ -1,64 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 name: Scorecard
 
-# OpenSSF Scorecard grades this repository's security practices and
-# publishes the result, which is what the README badge reads. Without
-# this workflow the badge renders empty -- it did for months, because
-# the badge was added and the thing that produces its data never was.
-#
-# `publish_results: true` is what makes the score public and feeds the
-# badge. Without it the run computes a score that nothing can read.
+# Run the verified upstream executable without its mutable image tag.
+# Public Scorecard publication is disabled: its workflow allowlist does
+# not accept digest-pinned container steps. Keep posture findings visible
+# as artifacts and categorized code-scanning results, separate from CodeQL.
 on:
   branch_protection_rule:
   schedule:
     - cron: "0 4 * * 1"
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      # Needed to publish the results and get a badge.
-      id-token: write
       contents: read
       actions: read
+      security-events: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
 
-      - name: Run analysis
-        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
-        with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: true
+      - name: Check Scorecard policy
+        run: python3 scripts/test-scorecard-policy.py
 
-      # Kept for 5 days so a dropped score can be compared against the
-      # run that produced it.
+      # v2.5.0, linux/amd64; GitHub build provenance binds this digest to
+      # ossf/scorecard-action commit fa7117db83c52d787ae5a89f350999701505d78e.
+      # Direct container steps do not inherit action.yaml input defaults.
+      - name: Run analysis
+        uses: docker://ghcr.io/ossf/scorecard-action@sha256:1e1481c65fc2407d3fd6ab18a23c741eb4d1c0d9359ebafc4b3ab13aa61d8627
+        env:
+          INPUT_RESULTS_FILE: results.sarif
+          INPUT_RESULTS_FORMAT: sarif
+          INPUT_FILE_MODE: archive
+          INPUT_REPO_TOKEN: ${{ github.token }}
+          INPUT_PUBLISH_RESULTS: "false"
+
+      # Retain comparisons for five days; missing output is a failure.
       - name: Upload the results as an artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: SARIF file
+          name: Scorecard SARIF
           path: results.sarif
           retention-days: 5
+          if-no-files-found: error
 
-      # The results are deliberately NOT uploaded to code scanning.
-      #
-      # Scorecard reports posture scores -- "0 approved changesets",
-      # "branch protection is not maximal", "8 of 30 commits checked by
-      # a SAST tool". Those are ratios and policy observations, not
-      # defects in this code. Uploaded as SARIF they became 86 open
-      # "alerts" across the suite that nobody triaged and that no code
-      # change could clear, which is how a real finding gets lost.
-      #
-      # Code scanning now holds CodeQL results only, so an alert there
-      # means something about the code. The Scorecard result stays
-      # public through `publish_results: true` -- it feeds the README
-      # badge and the API -- and the SARIF is kept as an artifact
-      # above for anyone who wants to read it.
+      # Fork PRs retain the artifact without requiring write access.
+      # These are repository posture findings, not source-code defects;
+      # do not dismiss them merely to reduce the alert count.
+      - name: Upload posture results to code scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif
+          category: /tool:scorecard

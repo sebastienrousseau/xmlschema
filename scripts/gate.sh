@@ -53,6 +53,7 @@ step "release workflow contract" python3 scripts/test-release-workflow.py
 step "fuzz license policy" python3 scripts/test-fuzz-license-policy.py
 step "release trust contract" python3 scripts/test-release-trust.py
 step "example coverage contract" python3 scripts/test-example-coverage.py
+step "Scorecard policy" python3 scripts/test-scorecard-policy.py
 step "no tracked build dir" bash -c '! git ls-files | grep -qx target'
 step "fmt"            cargo "+$TOOLCHAIN" fmt --all --check
 step "clippy"         cargo "+$TOOLCHAIN" clippy --workspace --all-targets --all-features -- -D warnings

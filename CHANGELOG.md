@@ -12,6 +12,10 @@ suite ships the same version number.
 
 ### Changed
 
+- Pin Scorecard execution by verified container digest and disable public
+  results publication. Retain SARIF artifacts, categorize posture findings
+  in GitHub code scanning, and display workflow status instead of a score.
+
 - Permit NCSA only for libfuzzer-sys 0.4.13 in the fuzz workspace;
   retain the root license policy and check both graphs in CI.
 - Require an annotated tag signed by the approved public key, with the
