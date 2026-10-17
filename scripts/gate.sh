@@ -50,6 +50,8 @@ step() {
 # it -- every build job fails until it is removed.
 step "publish helper contract" python3 scripts/test-publish-dry-run.py
 step "release workflow contract" python3 scripts/test-release-workflow.py
+step "fuzz license policy" python3 scripts/test-fuzz-license-policy.py
+step "release trust contract" python3 scripts/test-release-trust.py
 step "example coverage contract" python3 scripts/test-example-coverage.py
 step "no tracked build dir" bash -c '! git ls-files | grep -qx target'
 step "fmt"            cargo "+$TOOLCHAIN" fmt --all --check

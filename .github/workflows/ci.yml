@@ -28,6 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: python3 scripts/test-example-coverage.py
+      - run: python3 scripts/test-fuzz-license-policy.py
+      - run: python3 scripts/test-release-trust.py
 
   publish-helper-contract:
     name: Publish helper contract

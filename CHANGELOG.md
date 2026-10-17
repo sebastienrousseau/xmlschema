@@ -12,6 +12,13 @@ suite ships the same version number.
 
 ### Changed
 
+- Permit NCSA only for libfuzzer-sys 0.4.13 in the fuzz workspace;
+  retain the root license policy and check both graphs in CI.
+- Require an annotated tag signed by the approved public key, with the
+  exact project/version subject, and use crates.io Trusted Publishing
+  instead of a stored publishing token. Registry configuration still
+  requires independent confirmation before tagging.
+
 - Align unpublished harnesses at 0.0.11 and match example coverage to
   exact source paths, with negative regression contracts in local/CI gates.
 - Wait for all actual release prerequisites before compiling, propagate
