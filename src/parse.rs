@@ -265,11 +265,11 @@ fn parse_schema_at(
     // declared after it and resolving forward references on demand
     // would re-walk the tree for each one.
     for &child in doc.children(root) {
-        if local_name(&doc, child) == Some("simpleType") {
-            if let Some(name) = doc.attribute(child, "name") {
-                let st = parse_simple_type(&session.ctx(&schema), child);
-                let _ = schema.named_simple_types.insert(name.to_owned(), st);
-            }
+        if local_name(&doc, child) == Some("simpleType")
+            && let Some(name) = doc.attribute(child, "name")
+        {
+            let st = parse_simple_type(&session.ctx(&schema), child);
+            let _ = schema.named_simple_types.insert(name.to_owned(), st);
         }
     }
 
@@ -459,19 +459,19 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
             let wrapped = children
                 .iter()
                 .any(|c| matches!(*c, "simpleContent" | "complexContent"));
-            if wrapped {
-                if let Some(stray) = children.iter().find(|c| {
+            if wrapped
+                && let Some(stray) = children.iter().find(|c| {
                     !matches!(
                         **c,
                         "simpleContent" | "complexContent" | "annotation"
                     )
-                }) {
-                    return err(format!(
-                        "xs:{stray} may not sit beside xs:simpleContent or \
+                })
+            {
+                return err(format!(
+                    "xs:{stray} may not sit beside xs:simpleContent or \
                          xs:complexContent; it belongs inside the extension \
                          or restriction"
-                    ));
-                }
+                ));
             }
         }
 
@@ -959,12 +959,11 @@ fn resolve_named_type(ctx: &Ctx, name: &str) -> Content {
     }
     // A complex type declared later in the same pass is not in the
     // schema yet, so fall back to reading it directly.
-    if let Some(&node) = ctx.tops.complex_types.get(local) {
-        if let Some(inner) = ctx.deeper() {
-            if let Ok(content) = parse_complex_type(&inner, node) {
-                return content;
-            }
-        }
+    if let Some(&node) = ctx.tops.complex_types.get(local)
+        && let Some(inner) = ctx.deeper()
+        && let Ok(content) = parse_complex_type(&inner, node)
+    {
+        return content;
     }
     BuiltIn::from_name(name).map_or(Content::Any, |b| {
         Content::Simple(Box::new(SimpleType::atomic(b)))
@@ -1019,10 +1018,10 @@ fn parse_complex_type_uncached(
         // simpleContent restricts or extends a simple type; the
         // validating part is the base type.
         for kind in ["extension", "restriction"] {
-            if let Some(node) = first_child_named(doc, sc, kind) {
-                if let Some(base) = doc.attribute(node, "base") {
-                    return Ok(resolve_named_type(ctx, base));
-                }
+            if let Some(node) = first_child_named(doc, sc, kind)
+                && let Some(base) = doc.attribute(node, "base")
+            {
+                return Ok(resolve_named_type(ctx, base));
             }
         }
         return Ok(Content::Any);

@@ -106,12 +106,7 @@ pub fn sha256(data: &[u8]) -> String {
     }
     msg.extend_from_slice(&bit_len.to_be_bytes());
 
-    // `chunks_exact` rather than `as_chunks`: clippy 1.98 prefers the
-    // latter, but `slice_as_chunks` is unstable until well after this
-    // crate's MSRV of 1.86, so taking the lint's advice breaks the MSRV
-    // build. The lint is suppressed rather than obeyed.
-    #[allow(clippy::chunks_exact_to_as_chunks)]
-    for chunk in msg.chunks_exact(64) {
+    for chunk in msg.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
         for (i, word) in w.iter_mut().enumerate().take(16) {
             let b: [u8; 4] = [

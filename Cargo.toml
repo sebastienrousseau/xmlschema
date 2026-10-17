@@ -3,13 +3,12 @@ members = ["conformance"]
 
 [package]
 name = "xmlschema"
-version = "0.0.10"
+version = "0.0.11"
 edition = "2024"
-rust-version = "1.86.0"
+rust-version = "1.89.0"
 license = "MIT OR Apache-2.0"
 description = "XML Schema (XSD) validation for Rust, with zero unsafe code"
 repository = "https://github.com/sebastienrousseau/xmlschema"
-homepage = "https://github.com/sebastienrousseau/xmlschema"
 documentation = "https://docs.rs/xmlschema"
 readme = "README.md"
 keywords = ["xml", "xsd", "schema", "validation", "safe"]
@@ -30,7 +29,7 @@ include = [
 # `xpath` is required, not optional: an identity constraint's selector
 # and fields *are* XPath expressions, and XSD permits a restricted
 # subset that oxml's engine is a superset of.
-oxml = { version = "0.0.10", default-features = false, features = [
+oxml = { version = "=0.0.11", default-features = false, features = [
     "std",
     "xpath",
 ] }

@@ -16,24 +16,22 @@ You should get an acknowledgement within 72 hours.
 
 ## Threat model
 
-XSD validators inherit their parser's threat model. XML parsers have a well-known attack surface, and xmlschema's design
-forecloses most of it rather than mitigating it:
+Schemas and documents are untrusted input. The core parser supports
+internal entities with configurable expansion/depth budgets and performs
+no automatic external retrieval. `parse_schema` uses the core's default
+profile, not its strict application profile. Callers must impose source,
+time and process-memory limits appropriate to their workload.
 
-**Entity expansion (XXE, billion laughs).** xmlschema resolves only the five
-predefined entities and numeric character references. External and
-custom entities are *not* resolved — a document declaring
-`<!ENTITY xxe SYSTEM "file:///etc/passwd">` is rejected rather than
-expanded. There is no option to enable it, so there is no way to
-configure the vulnerability back in.
+Schema reference depth and expanded content-model particles are bounded.
+`parse_schema_with` can resolve imports/includes only through the supplied
+`SchemaSource`; that resolver owns any filesystem/network authorization.
+`parse_schema` supplies no resolver. Callers must inspect
+`support::unsupported` before treating a validation result as complete XSD
+enforcement. A pass with unsupported constructs is not proof of validity.
 
-**Unbounded recursion.** Deeply nested documents are parsed with
-recursion. Extremely deep input can exhaust the stack; if you parse
-untrusted documents of unbounded depth, run the parse on a thread with
-a known stack size.
-
-**Memory safety.** `#![forbid(unsafe_code)]` is enforced at compile
-time, so the class of memory-corruption bugs that has historically
-affected C XML parsers cannot occur here.
+**Memory safety.** This crate forbids unsafe Rust in its own source.
+Dependencies and runtimes have separate safety obligations. This
+does not rule out resource exhaustion, logic defects or protocol errors.
 
 ## What is not a vulnerability
 

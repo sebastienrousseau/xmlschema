@@ -101,20 +101,17 @@ fn load_set(path: &Path, root: &Path) -> Result<Vec<Case>, String> {
             .and_then(|d| doc.attribute(d, "href"))
             .map(|href| normalise(base, href));
 
-        if let (Some(test), Some(schema)) = (schema_test, schema.clone()) {
-            if let Some(expected) = expectation(&doc, test) {
-                cases.push(Case {
-                    group: name.clone(),
-                    name: doc
-                        .attribute(test, "name")
-                        .unwrap_or(&name)
-                        .to_owned(),
-                    set: set.clone(),
-                    schema: Some(schema),
-                    instance: None,
-                    expected,
-                });
-            }
+        if let (Some(test), Some(schema)) = (schema_test, schema.clone())
+            && let Some(expected) = expectation(&doc, test)
+        {
+            cases.push(Case {
+                group: name.clone(),
+                name: doc.attribute(test, "name").unwrap_or(&name).to_owned(),
+                set: set.clone(),
+                schema: Some(schema),
+                instance: None,
+                expected,
+            });
         }
 
         for &instance_test in doc.children(group) {
