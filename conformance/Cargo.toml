@@ -1,6 +1,6 @@
 [package]
 name = "xmlschema-conformance"
-version = "0.0.0"
+version = "0.0.11"
 edition = "2024"
 rust-version = "1.89.0"
 publish = false

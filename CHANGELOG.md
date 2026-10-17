@@ -12,6 +12,11 @@ suite ships the same version number.
 
 ### Changed
 
+- Align unpublished harnesses at 0.0.11 and match example coverage to
+  exact source paths, with negative regression contracts in local/CI gates.
+- Wait for all actual release prerequisites before compiling, propagate
+  publication failures and keep the laptop helper dry-run-only.
+
 - Align the publishable package and family dependencies at 0.0.11,
   refresh root/fuzz lockfiles, and retain Rust 1.89.0 as the minimum.
 - Validate closed issue/dependency changes against current sources and

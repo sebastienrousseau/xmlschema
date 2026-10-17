@@ -22,12 +22,21 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
+  example-coverage-contract:
+    name: Example coverage contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: python3 scripts/test-example-coverage.py
+
   publish-helper-contract:
     name: Publish helper contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
-      - run: python3 scripts/test-publish-dry-run.py
+      - run: |
+          python3 scripts/test-publish-dry-run.py
+          python3 scripts/test-release-workflow.py
 
   test:
     name: Test (${{ matrix.os }})
