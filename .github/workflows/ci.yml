@@ -22,6 +22,13 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
+  publish-helper-contract:
+    name: Publish helper contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
+      - run: python3 scripts/test-publish-dry-run.py
+
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -33,7 +40,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo test --all-features
 
@@ -82,7 +89,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # The examples assert rather than print, so running them checks
       # the API they demonstrate still behaves as documented. `cargo
@@ -148,16 +155,16 @@ jobs:
     # otherwise pin this job to the release toolchain, where
     # `cargo llvm-cov --branch` does not build.
     env:
-      RUSTUP_TOOLCHAIN: nightly
+      RUSTUP_TOOLCHAIN: nightly-2026-10-13
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: nightly
+          toolchain: nightly-2026-10-13
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.22
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov@0.9.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # cargo-llvm-cov has --fail-under-lines but no branch equivalent,
       # so the floor is enforced by reading the summary. Branch
@@ -183,7 +190,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo fmt --all --check
@@ -203,11 +210,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.22
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov@0.9.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # The README says the examples cover the public API. That claim
       # decays silently, so it is measured rather than trusted: every
@@ -233,7 +240,7 @@ jobs:
     # cargo-fuzz needs nightly, and the pinned toolchain would
     # otherwise replace it.
     env:
-      RUSTUP_TOOLCHAIN: nightly
+      RUSTUP_TOOLCHAIN: nightly-2026-10-13
     strategy:
       fail-fast: false
       matrix:
@@ -242,11 +249,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: nightly
+          toolchain: nightly-2026-10-13
       # `cargo install` rather than a prebuilt: a prebuilt landed
       # somewhere `cargo fuzz` could not find under a pinned
       # toolchain, giving `no such command: fuzz`.
-      - run: cargo install cargo-fuzz --locked
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Seeds matter more than run time. From an empty corpus libFuzzer
       # spends almost the whole budget on inputs that are not XML at
@@ -302,15 +309,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
           components: llvm-tools-preview
-      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.22
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov@0.9.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Every defect fixed in 0.0.3 was found by raising coverage, not
       # by reading the code. The floor keeps that from eroding: a new
       # branch nothing exercises fails here rather than shipping.
       - run: >
-          cargo llvm-cov --all-features --fail-under-lines 95
+          cargo llvm-cov --remap-path-prefix --all-features --fail-under-lines 95
           --ignore-filename-regex 'builds/cargo/package'

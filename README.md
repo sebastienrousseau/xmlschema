@@ -41,7 +41,7 @@
 
 **The oxml ecosystem**
 
-- [The oxml ecosystem](#the-oxml-ecosystem) — six crates, one version
+- [The oxml ecosystem](#the-oxml-ecosystem) — seven crates, one version
 
 **Reference**
 
@@ -59,6 +59,7 @@
 - [FAQ](#faq)
 - [Development](#development)
 - [Security](#security)
+- [Roadmap](doc/ROADMAP.md)
 - [Documentation](#documentation)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
@@ -80,8 +81,8 @@
 | Diagnostics | ✅ every violation, each with a path |
 | Conformance | ✅ **95.2%** of the W3C suite's decided tests, ratcheted |
 | Tests | ✅ 241, plus the conformance suite |
-| Identity constraints (`key`, `keyref`, `unique`) | ✗ |
-| `xs:import` / `include` | ✗ |
+| Identity constraints (`key`, `keyref`, `unique`) | ✅ scoped selectors and fields |
+| `xs:import` / `include` | ✅ with caller-supplied `SchemaSource` |
 | Substitution groups | ✗ |
 
 An unsupported construct is skipped rather than rejected: the
@@ -97,12 +98,13 @@ never confused for one another.
 
 ```toml
 [dependencies]
-xmlschema = { git = "https://github.com/sebastienrousseau/xmlschema" }
-oxml = { git = "https://github.com/sebastienrousseau/oxml" }
+xmlschema = "=0.0.11"
+oxml = "=0.0.11"
 ```
 
-Published releases follow once the suite cuts its first version
-together.
+Use matching family versions so documents crossing the core/schema
+boundary have one Rust type. This is the 0.0.11 release candidate;
+registry availability is verified separately before publication.
 
 ## Quick Start
 
@@ -168,7 +170,8 @@ compatibility table to consult.
 | [`oxml-lsp`](https://github.com/sebastienrousseau/oxml-lsp) | XML analysis and linting; the LSP transport is not yet implemented | **Available** |
 | [`oxml-mcp`](https://github.com/sebastienrousseau/oxml-mcp) | Model Context Protocol server | **Available** |
 | [`oxml-wasm`](https://github.com/sebastienrousseau/oxml-wasm) | WebAssembly bindings | **Available** |
-| **`xmlschema`** | **XSD validation** | **Being rewritten** |
+| **`xmlschema`** | **XSD validation** | **Available, with the limits above** |
+| [`oxml-json`](https://github.com/sebastienrousseau/oxml-json) | JSON support for the language server |
 
 This crate keeps its published name rather than being folded into
 `oxml`. The name means XSD validation specifically, and repurposing it
@@ -195,12 +198,10 @@ Everything in the list this section used to hold has shipped — schema
 parsing, structural validation, simple types, complex types and
 diagnostics are all ✅ in [Status](#status) above. What remains:
 
-1. **Identity constraints** — `xs:key`, `xs:keyref`, `xs:unique`.
-2. **Import mechanisms** — `xs:import`, `xs:include`, `xs:redefine`.
-   These come after the core is correct, because they multiply the
-   surface without adding validation power.
-3. **Substitution groups**, and the undecidable corners of derivation
-   validity.
+Identity constraints and caller-supplied imports/includes are
+implemented. Remaining gaps include `xs:redefine`, substitution groups
+and unsupported corners of derivation validity. Check `support::unsupported`
+for the actual schema, rather than assuming a validation pass is complete.
 
 An unsupported construct is skipped rather than rejected, and the
 conformance harness counts such a test as *unsupported* whatever
@@ -271,8 +272,8 @@ of text to grep.
 | a libxml2 C dependency | none |
 
 `libxml2` implements XSD 1.0 completely and this crate does not — see
-[Status](#status). If you need `xs:import`, identity constraints or
-complex-type derivation today, stay.
+[Status](#status). If you need constructs reported as unenforceable by
+`support::unsupported`, use a validator that implements those constructs.
 
 ## Examples
 
@@ -292,11 +293,9 @@ cargo run --example validate
   [Status](#status) against your schemas first.
 - **You need XSD 1.1** — assertions, conditional type assignment.
   Xerces has it.
-- **Your schemas use `xs:import` or `xs:include`.** Not supported;
-  those constructs are skipped, so validation is incomplete rather
-  than wrong.
-- **You need identity constraints** — `xs:key`, `xs:keyref`,
-  `xs:unique`.
+- **You need automatic schema fetching.** Imports and includes require
+  `parse_schema_with` and a caller-supplied `SchemaSource`; no network
+  or filesystem resolver is enabled by default.
 - **You need to validate while streaming.** The document is parsed in
   full first.
 
@@ -334,11 +333,9 @@ parsing.
 ### Does it fetch schemas over the network?
 
 No. `parse_schema` takes the schema's *text*. There is no code that
-opens a file or a socket, which is also why `xs:import` and
-`xs:include` are not supported — they name a location to fetch.
-
-When they arrive, the shape will be a caller-supplied map from
-location to content, never a fetch.
+opens a file or a socket. `parse_schema_with` resolves imports and
+includes through the `SchemaSource` supplied by the caller; `parse_schema`
+uses `NoSchemas` and reports unresolved constructs as unenforceable.
 
 ### What does a path like `/order/line[1]/qty` mean?
 
@@ -419,9 +416,9 @@ XSD validation is normally applied to untrusted documents, which makes
 the parser's threat model part of this crate's threat model. It
 inherits `oxml`'s posture:
 
-- **No entity expansion.** Only the five predefined entities and
-  numeric character references are resolved, so XXE and billion-laughs
-  are foreclosed by construction rather than by a flag.
+- **No automatic external retrieval.** The core never fetches external
+  entities. Internal entity expansion is supported within its configured
+  budgets; caller-supplied schema resolution remains the caller's trust boundary.
 - **No `unsafe`.** `#![forbid(unsafe_code)]`, enforced at compile time.
 
 Report vulnerabilities privately — see [SECURITY.md](SECURITY.md).

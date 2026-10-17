@@ -8,9 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
-## [0.0.11] - Unreleased
+## [0.0.11] - 2026-10-17
 
 ### Changed
+
+- Align the publishable package and family dependencies at 0.0.11,
+  refresh root/fuzz lockfiles, and retain Rust 1.89.0 as the minimum.
+- Validate closed issue/dependency changes against current sources and
+  use pinned compiler, coverage, fuzz and audit tools in CI.
 
 - **Breaking: the MSRV is now Rust 1.89.0** (was 1.86.0), one floor
   shared with the maintainer's other Rust crates.
