@@ -9,7 +9,6 @@ rust-version = "1.89.0"
 license = "MIT OR Apache-2.0"
 description = "XML Schema (XSD) validation for Rust, with zero unsafe code"
 repository = "https://github.com/sebastienrousseau/xmlschema"
-homepage = "https://github.com/sebastienrousseau/xmlschema"
 documentation = "https://docs.rs/xmlschema"
 readme = "README.md"
 keywords = ["xml", "xsd", "schema", "validation", "safe"]
