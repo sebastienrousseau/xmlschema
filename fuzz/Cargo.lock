@@ -72,6 +72,8 @@ dependencies = [
 [[package]]
 name = "oxml"
 version = "0.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a87b5208e19be9156660b4cf008a2b7b864502dbe5c3833dc47155fd2d4ea14"
 
 [[package]]
 name = "r-efi"
