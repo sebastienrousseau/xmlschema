@@ -62,7 +62,7 @@ class ScorecardPolicy(unittest.TestCase):
     def test_categorized_code_scanning(self):
         step = self.step('Upload posture results to code scanning')
         self.assertIn('uses: github/codeql-action/upload-sarif@'
-                      '24c54180a607b1449ed407dd24f251e4e9147c8d', step)
+                      '6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee', step)
         self.assertIn('sarif_file: results.sarif', step)
         self.assertIn('category: /tool:scorecard', step)
         self.assertIn("github.event_name != 'pull_request' || "
