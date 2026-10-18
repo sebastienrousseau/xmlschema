@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Approved only for the bundled libFuzzer code in this exact fuzz dependency.
+exceptions = [
+    { crate = "libfuzzer-sys@0.4.13", allow = ["NCSA"] },
+]

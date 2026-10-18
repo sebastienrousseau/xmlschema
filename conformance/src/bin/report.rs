@@ -167,11 +167,11 @@ fn main() -> Result<(), String> {
 
     let mut reasons: BTreeMap<&str, usize> = BTreeMap::new();
     for r in &records {
-        if r.outcome == Outcome::Unsupported {
-            if let Some(reason) = r.reason.as_deref() {
-                let head = reason.split_once(": ").map_or(reason, |(c, _)| c);
-                *reasons.entry(head).or_default() += 1;
-            }
+        if r.outcome == Outcome::Unsupported
+            && let Some(reason) = r.reason.as_deref()
+        {
+            let head = reason.split_once(": ").map_or(reason, |(c, _)| c);
+            *reasons.entry(head).or_default() += 1;
         }
     }
     let mut ranked: Vec<_> = reasons.into_iter().collect();

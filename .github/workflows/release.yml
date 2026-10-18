@@ -6,7 +6,9 @@ name: Release
 #
 # The trigger is a tag. Pushing `v0.0.7` publishes 0.0.7 and nothing
 # else: the first job refuses to run if the tag disagrees with
-# Cargo.toml.
+# Cargo.toml or is not signed by a listed key.
+# Enable crates.io Trusted Publishing for this repository and release.yml
+# before tagging. Publication uses a short-lived OIDC token only.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
@@ -22,11 +24,16 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
-          toolchain: stable
+          toolchain: 1.98.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       # A tag that disagrees with Cargo.toml publishes the wrong
@@ -34,13 +41,31 @@ jobs:
       - name: The tag must match the version in Cargo.toml
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          have="$(cargo metadata --no-deps --format-version 1 \
+          have="$(cargo metadata --no-deps --format-version 1 --locked \
             | jq -r '.packages[] | select(.name=="xmlschema") | .version')"
           if [ "$tag" != "$have" ]; then
             echo "::error::tag $tag does not match Cargo.toml $have"
             exit 1
           fi
           echo "publishing xmlschema $tag"
+
+      # The tag must be an annotated tag signed by a key in
+      # .github/allowed_signers, with the message the release standard
+      # requires. An unsigned or lightweight tag can be pushed by
+      # anyone with write access; this is what makes the tag mean
+      # "the maintainer released it".
+      - name: The tag must be signed by a listed key
+        run: |
+          git config gpg.ssh.allowedSignersFile .github/allowed_signers
+          if ! git verify-tag "$GITHUB_REF_NAME"; then
+            echo "::error::$GITHUB_REF_NAME is not signed by a key in .github/allowed_signers"
+            exit 1
+          fi
+          subject="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
+          if [ "$subject" != "xmlschema $GITHUB_REF_NAME" ]; then
+            echo "::error::tag message must be 'xmlschema $GITHUB_REF_NAME', got '$subject'"
+            exit 1
+          fi
 
       # crates.io versions are immutable: publishing one that already
       # exists fails. A tag can be pushed after the fact -- 0.0.7 was
@@ -55,17 +80,14 @@ jobs:
         id: published
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          if curl -sf -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/xmlschema/$tag" >/dev/null; then
+          if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/xmlschema/$tag" >/dev/null; then
             echo "xmlschema $tag is already on crates.io; nothing to do"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - if: steps.published.outputs.skip == 'false'
-        run: cargo test --all-features
-
-      # The suite ships one version across six crates, and the order is
+      # The suite ships one version across seven crates, and the order is
       # load-bearing: `oxml-cli` and `oxml-mcp` depend on `xmlschema`,
       # which depends on `oxml`. Publishing out of order leaves a tree
       # resolving two incompatible `oxml` versions, which fails with
@@ -83,39 +105,31 @@ jobs:
             echo "waiting for $dep $tag"
             ok=
             for i in $(seq 1 90); do
-              if curl -sf -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$tag" >/dev/null; then
+              if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$tag" >/dev/null; then
                 ok=1; echo "  $dep $tag is live"; break
               fi
+              echo "  not indexed yet ($i/90)"
               sleep 20
             done
             if [ -z "$ok" ]; then
-              echo "::error::$dep $tag did not appear within 30 minutes"
+              echo "::error::$dep $tag did not appear after 90 checks"
               exit 1
             fi
           done
 
-      # Until CARGO_REGISTRY_TOKEN exists, this crate is published
-      # from a laptop with `scripts/publish.sh`. Say so plainly rather
-      # than letting `cargo publish` fail on an empty token, which
-      # reports as an authentication error and reads like a revoked
-      # credential.
-      - name: The publish token must be set
+      - if: steps.published.outputs.skip == 'false'
+        run: cargo test --locked --all-features
+
+      - name: Authenticate with crates.io (Trusted Publishing)
+        id: auth
         if: steps.published.outputs.skip == 'false'
-        env:
-          TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::error::CARGO_REGISTRY_TOKEN is not set on this repository."
-            echo "Either add it, or publish with scripts/publish.sh and do"
-            echo "not push release tags."
-            exit 1
-          fi
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
 
       - name: Publish
         if: steps.published.outputs.skip == 'false'
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish 
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked
 
       # crates.io indexes asynchronously, so a publish that returned
       # success is not yet a publish anyone can depend on. The next
@@ -125,10 +139,10 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME#v}"
           for i in $(seq 1 30); do
-            if curl -sf -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/xmlschema/$tag" >/dev/null; then
+            if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/xmlschema/$tag" >/dev/null; then
               echo "xmlschema $tag is live"; exit 0
             fi
             echo "not indexed yet ($i/30)"; sleep 10
           done
-          echo "::error::xmlschema $tag did not appear within five minutes"
+          echo "::error::xmlschema $tag did not appear after 30 checks"
           exit 1

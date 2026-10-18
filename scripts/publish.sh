@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 #
-# Publish this crate to crates.io from a laptop.
+# Validate this crate's release package from a laptop, without uploading.
 #
-# CI publishes on a tag once CARGO_REGISTRY_TOKEN exists on the
-# repository (.github/workflows/release.yml). Until then this script is
-# the release path, and it runs the same checks the workflow does, in
-# the same order, so switching over changes who runs them and nothing
-# else.
+# Publication belongs to the reviewed CI release workflow. This helper
+# checks the reviewed main tree and package; it has no upload mode.
 #
-# crates.io cannot be un-published, only yanked. Everything below
-# happens before the upload, and any failure stops it.
+# crates.io versions are immutable; failures must stop before publication.
 set -euo pipefail
 # Resolve the repository from this script's own location, not from
 # the caller's. `git rev-parse` reads the *current* directory, so
@@ -18,10 +15,8 @@ set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 CRATE="xmlschema"
-DEPS=(oxml)
-PKG_ARG=()
 
-version="$(cargo metadata --no-deps --format-version 1 \
+version="$(cargo metadata --no-deps --format-version 1 --locked \
   | jq -r --arg n "$CRATE" '.packages[] | select(.name==$n) | .version')"
 echo "== $CRATE $version =="
 
@@ -35,38 +30,12 @@ git fetch origin --quiet
 [ -z "$(git status --porcelain)" ] \
   || { echo "working tree is dirty; cargo publish would package it"; exit 1; }
 
-# 2. The suite ships one version across six crates, and a crate whose
-#    dependency is not yet live cannot resolve. The CI workflow waits;
-#    here, say so and stop.
-for dep in "${DEPS[@]}"; do
-  if curl -sf -H "User-Agent: xmlschema publish script (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$version" >/dev/null; then
-    echo "  dependency $dep $version is live"
-  else
-    echo "  dependency $dep $version is NOT on crates.io yet -- publish it first"
-    exit 1
-  fi
-done
-
-# 3. Everything CI runs.
+# 2. Run the local gate. Cargo's dry run below also requires every
+#    registry dependency to be resolvable at the declared family version.
 ./scripts/gate.sh
 
-# 4. What the upload would contain.
-cargo publish --dry-run "${PKG_ARG[@]}"
+# 3. What the upload would contain, using the reviewed dependency lock.
+cargo publish --dry-run --locked
 
-echo
-read -r -p "Publish $CRATE $version to crates.io? This cannot be undone. [y/N] " reply
-[ "$reply" = "y" ] || { echo "stopped"; exit 1; }
-
-cargo publish "${PKG_ARG[@]}"
-
-# 5. crates.io indexes asynchronously, so a publish that returned
-#    success is not yet one the next crate can depend on.
-echo "waiting for the index"
-for i in $(seq 1 30); do
-  if curl -sf -H "User-Agent: xmlschema publish script (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$CRATE/$version" >/dev/null; then
-    echo "$CRATE $version is live"
-    exit 0
-  fi
-  sleep 10
-done
-echo "published, but not indexed after five minutes -- check crates.io"
+echo "Dry run complete for $CRATE $version. Nothing was published."
+echo "Publication requires the reviewed release workflow."

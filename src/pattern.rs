@@ -609,12 +609,11 @@ fn match_node(
             // Subtraction applies to the group *before* negation, so
             // `[^a-[b]]` is "not (a except b)" rather than "(not a)
             // except b".
-            if hit {
-                if let Some(inner) = subtract {
-                    if match_node(inner, input, pos, &mut |_| true) {
-                        hit = false;
-                    }
-                }
+            if hit
+                && let Some(inner) = subtract
+                && match_node(inner, input, pos, &mut |_| true)
+            {
+                hit = false;
             }
             (hit != *negated) && k(pos + 1)
         }

@@ -19,9 +19,10 @@ memory, or reach something it should not.
 
 ## The claim
 
-**A hostile input can cause this software to return an error. It
-cannot cause it to corrupt memory, execute code, exhaust the machine,
-or reach the network or the filesystem.**
+Untrusted input is checked at the boundaries documented in
+[SECURITY.md](../SECURITY.md). This crate forbids unsafe Rust in its own
+source. Those controls do not prove the absence of denial of service,
+logic defects, or vulnerabilities in dependencies and runtimes.
 
 ## The argument
 
@@ -31,10 +32,11 @@ Schema documents are parsed by `oxml`, which never fetches external entities, so
 
 ### Resource exhaustion is bounded, not merely unlikely
 
-Depth, entity expansion and input size are bounded by explicit limits
-with documented defaults. Recursion is bounded because a stack
-overflow aborts the process rather than unwinding, and no caller can
-catch it.
+The concrete source, recursion and evaluation limits, together with
+caller-owned limits, are recorded in [the threat model](../SECURITY.md).
+A stack overflow aborts the process, so recursion must be bounded before
+entering another frame; aborting is not a mitigation. These controls do
+not constitute a process-wide memory or concurrency bound.
 
 ### Correctness is measured against an external standard
 
@@ -53,12 +55,12 @@ in either direction fails the build.
 
 ## What this case does *not* claim
 
-- It does not claim the absence of defects. It claims that a defect of
-  a particular class — memory corruption — is ruled out by
-  construction, and that other classes are bounded and tested for.
-- It does not claim the defaults are the tightest possible. They are
-  chosen to accept every real document encountered; a service parsing
-  untrusted XML under load should tighten them.
+- It does not claim the absence of defects or memory corruption in
+  dependencies, foreign runtimes or the compiler. Source-level unsafe-code
+  prohibition is one control, not a proof about the entire process.
+- It does not claim that parser budgets replace deployment limits.
+  Callers must separately bound ingress, concurrent requests, wall-clock
+  execution and process or WebAssembly memory.
 - It does not claim independent review. This project has one
   maintainer, and no third party has audited it. That is recorded here
   rather than left to be inferred.

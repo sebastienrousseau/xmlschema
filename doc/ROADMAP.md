@@ -19,25 +19,17 @@ check runs.
 
 ## The order
 
-**1. Identity constraints** — `xs:key`, `xs:keyref`, `xs:unique`.
-These are the largest remaining category of real schemas this cannot
-validate, and unlike the import mechanisms they add validation power
-rather than surface.
+**Implemented: identity constraints.** `xs:key`, `xs:keyref` and
+`xs:unique` use scoped selectors and fields.
 
-**2. Import mechanisms** — `xs:import`, `xs:include`, `xs:redefine`.
-Deliberately after identity constraints: they multiply the surface
-without deciding anything new, and a schema that spans files is not
-more strictly checked than one that does not.
+**Implemented: caller-supplied imports and includes.** `xs:import` and
+`xs:include` resolve through `parse_schema_with` and a caller-owned
+`SchemaSource`. The default resolver retrieves nothing.
 
-Note what happens today: those constructs are **skipped**, so
-validation is incomplete rather than wrong. `support::unsupported()`
-reports exactly which constructs a schema uses that this crate does
-not enforce, so a caller can tell whether a "valid" verdict can be
-taken at face value. That reporting is the reason the gap is safe to
-have; it is not a substitute for closing it.
-
-**3. Substitution groups**, and the undecidable corners of derivation
-validity.
+**Remaining:** `xs:redefine`, substitution groups and unsupported
+corners of derivation validity. `support::unsupported()` reports
+constructs that are not enforced. A validation pass is not a complete
+XSD verdict unless the caller also checks that report.
 
 ## What is deliberately absent
 

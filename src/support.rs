@@ -158,15 +158,14 @@ fn check_element(
     // unsupported *regex* into an invalid *document* -- the wrong
     // answer, and one that counts against the pass rate as though the
     // document were at fault.
-    if name == "pattern" {
-        if let Some(value) = doc.attribute(id, "value") {
-            if let Err(why) = crate::pattern::Pattern::compile(value) {
-                out.push(Unsupported {
-                    construct: format!("xs:pattern {value:?}"),
-                    effect: format!("the pattern does not compile: {why}"),
-                });
-            }
-        }
+    if name == "pattern"
+        && let Some(value) = doc.attribute(id, "value")
+        && let Err(why) = crate::pattern::Pattern::compile(value)
+    {
+        out.push(Unsupported {
+            construct: format!("xs:pattern {value:?}"),
+            effect: format!("the pattern does not compile: {why}"),
+        });
     }
 
     // A type reference is resolved against the built-ins and this
@@ -175,10 +174,10 @@ fn check_element(
     if let Some(type_name) = doc.attribute(id, "type") {
         check_type_reference(doc, type_name, out);
     }
-    if name == "restriction" || name == "extension" {
-        if let Some(base) = doc.attribute(id, "base") {
-            check_type_reference(doc, base, out);
-        }
+    if (name == "restriction" || name == "extension")
+        && let Some(base) = doc.attribute(id, "base")
+    {
+        check_type_reference(doc, base, out);
     }
 
     // Attributes that change what a declaration means, none of which

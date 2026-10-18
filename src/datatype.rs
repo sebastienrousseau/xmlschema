@@ -280,7 +280,7 @@ impl Datatype {
             Self::GDay => is_g_day(strip_zone(v)),
 
             Self::HexBinary => {
-                v.len() % 2 == 0 && v.bytes().all(|b| b.is_ascii_hexdigit())
+                v.len().is_multiple_of(2) && v.bytes().all(|b| b.is_ascii_hexdigit())
             }
             Self::Base64Binary => is_base64(v),
         }
@@ -551,7 +551,7 @@ impl Datatype {
             Self::Base64Binary => {
                 let clean: Vec<u8> =
                     v.bytes().filter(|b| !is_xml_space(*b as char)).collect();
-                if clean.len() % 4 != 0 || clean.is_empty() {
+                if !clean.len().is_multiple_of(4) || clean.is_empty() {
                     return 0;
                 }
                 let padding = if clean.ends_with(b"==") {
@@ -997,10 +997,10 @@ fn is_duration(v: &str) -> bool {
     if !components(date, &['Y', 'M', 'D'], false, &mut any) {
         return false;
     }
-    if let Some(time) = time {
-        if !components(time, &['H', 'M', 'S'], true, &mut any) {
-            return false;
-        }
+    if let Some(time) = time
+        && !components(time, &['H', 'M', 'S'], true, &mut any)
+    {
+        return false;
     }
     any
 }
@@ -1052,7 +1052,7 @@ fn components(
 
 fn is_base64(v: &str) -> bool {
     let body: String = v.chars().filter(|c| !is_xml_space(*c)).collect();
-    if body.len() % 4 != 0 {
+    if !body.len().is_multiple_of(4) {
         return false;
     }
     let (data, padding) = match body.strip_suffix("==") {
