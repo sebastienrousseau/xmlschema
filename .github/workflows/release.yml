@@ -146,3 +146,80 @@ jobs:
           done
           echo "::error::xmlschema $tag did not appear after 30 checks"
           exit 1
+
+  release-page:
+    name: GitHub release with checksums, SBOM and provenance
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.2
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.0
+      - uses: taiki-e/install-action@78cfcd8ba8fdffde5edef8fdad0ccca4fb262f51 # v2.87.30
+        with:
+          tool: cargo-cyclonedx@0.5.9
+
+      - name: Release notes must exist
+        run: |
+          notes="doc/release-notes/${GITHUB_REF_NAME#v}.md"
+          [ -f "$notes" ] || { echo "::error::$notes is missing"; exit 1; }
+          grep -q '^## Highlights' "$notes" \
+            || { echo "::error::$notes has no '## Highlights' section"; exit 1; }
+
+      - name: Package, SBOM and checksums
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          archive="xmlschema-$v.crate"
+          curl --fail --silent --show-error --location --proto '=https' \
+            "https://static.crates.io/crates/xmlschema/$archive" --output "dist/$archive"
+          expected="$(curl --fail --silent --show-error --proto '=https' \
+            -H 'User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)' \
+            "https://crates.io/api/v1/crates/xmlschema/$v" \
+            | jq -er --arg v "$v" '.version | select(.crate == "xmlschema" and .num == $v) | .checksum | select(test("^[0-9a-f]{64}$"))')"
+          (cd dist && printf '%s  %s\n' "$expected" "$archive" | sha256sum --check --strict)
+          tar -xOf "dist/$archive" "xmlschema-$v/.cargo_vcs_info.json" \
+            | jq -e --arg sha "$GITHUB_SHA" '.git.sha1 == $sha and .git.dirty != true'
+          cargo cyclonedx --all-features --format json --override-filename "xmlschema-$v.cdx"
+          mv "xmlschema-$v.cdx.json" dist/
+          (cd dist && sha256sum xmlschema-* > "xmlschema-$v.sha256")
+          cat "dist/xmlschema-$v.sha256"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Compose the release page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          notes="doc/release-notes/$v.md"
+          prev="$(git tag --sort=-v:refname | grep -v "^$GITHUB_REF_NAME$" | head -1)"
+          {
+            awk '/^## Highlights/{printing=1} printing && /^## / && !/^## Highlights/{exit} printing{print}' "$notes"
+            echo
+            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$GITHUB_REF_NAME" -f previous_tag_name="$prev" \
+              --jq .body | sed -n '/^## What.s Changed/,$p' | sed '/^\*\*Full Changelog/d'
+            echo
+            echo '## Checksums'
+            echo
+            echo 'SHA-256 of every asset attached to this release:'
+            echo
+            echo '```text'
+            cat "dist/xmlschema-$v.sha256"
+            echo '```'
+            echo
+            echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$prev...$GITHUB_REF_NAME"
+          } > body.md
+          cat body.md
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "xmlschema $v" --notes-file body.md --verify-tag

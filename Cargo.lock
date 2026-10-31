@@ -218,9 +218,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "oxml"
-version = "0.0.11"
+version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a87b5208e19be9156660b4cf008a2b7b864502dbe5c3833dc47155fd2d4ea14"
+checksum = "099a65b3139999c480e6e8973c2c7ddba41be2acda6fc9375a5569f072d7aa93"
 
 [[package]]
 name = "page_size"
@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "xmlschema"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "criterion",
  "oxml",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "xmlschema-conformance"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "oxml",
  "xmlschema",

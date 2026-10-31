@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.12] - 2026-10-31
+
+### Changed
+
+- Align the publishable package, conformance helper, and fuzz harness
+  with `oxml = "=0.0.12"`, and refresh the root and fuzz `Cargo.lock`
+  files.
+- Bound pattern nesting depth, quantifier bounds, and backtracking steps
+  in the `xs:pattern` engine to guard against worst-case regular
+  expressions while executing single-character repetitions iteratively.
+- Refine `Zs`, `Zl`, and `Zp` Unicode general categories, combine
+  multi-pattern facets and inherited `simpleType` facets, index
+  top-level attributes for `xs:anyAttribute` validation, enforce
+  identity-constraint and attribute-order schema rules, and eliminate
+  per-element particle clones and repeated XPath compilation.
+- Raise W3C XML Schema Test Suite conformance from 95.2% (34,226 pass)
+  to 96.1% (34,564 pass) of 35,963 decided tests with zero panics.
+- Reach 100.00% line coverage (3,517/3,517) and 100.00% function
+  coverage (351/351) across `src/` under `cargo llvm-cov`.
+- Include empty `supply-chain/branch-protection` and
+  `supply-chain/online-scm` SARIF configurations on pull-request
+  Scorecard runs so GitHub Code Scanning compares all three Scorecard
+  categories against `main`.
+- Advance reviewed `dtolnay/rust-toolchain`, `Swatinem/rust-cache`,
+  `taiki-e/install-action`, `github/codeql-action` (v4.39.1), and
+  `rust-lang/crates-io-auth-action` (v1.0.6) workflow revisions.
+
 ## [0.0.11] - 2026-10-17
 
 ### Changed

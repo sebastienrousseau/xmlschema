@@ -10,7 +10,7 @@ restriction facets, complex types, derivation and diagnostics are
 implemented and exercised against the W3C XSD test suite.
 
 It is **not complete XSD 1.0**, and the README says so before it says
-anything else. Against the 39,420-test W3C suite, 95.0% of the tests
+anything else. Against the 39,420-test W3C suite, 96.1% of the tests
 that reach a decision pass. The gap between "decided" and "all" is the
 honest measure of what is missing.
 

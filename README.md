@@ -98,12 +98,12 @@ never confused for one another.
 
 ```toml
 [dependencies]
-xmlschema = "=0.0.11"
-oxml = "=0.0.11"
+xmlschema = "=0.0.12"
+oxml = "=0.0.12"
 ```
 
 Use matching family versions so documents crossing the core/schema
-boundary have one Rust type. This is the 0.0.11 release candidate;
+boundary have one Rust type. This is the 0.0.12 release candidate;
 registry availability is verified separately before publication.
 
 ## Quick Start
@@ -182,7 +182,7 @@ entirely different under a name they already depend on.
 
 | Crate | XSD validation | Pure Rust | WASM | Status |
 |---|---|---|---|---|
-| **`xmlschema`** | ✅ 95.2% of the W3C suite's decided tests | ✅ | ✅ | active |
+| **`xmlschema`** | ✅ 96.1% of the W3C suite's decided tests | ✅ | ✅ | active |
 | `libxml` | ✅ | ✗ (C-FFI) | ✗ | active |
 | `quick-xml` | ✗ | ✅ | ✅ | active |
 | `roxmltree` | ✗ | ✅ | ✅ | active |
