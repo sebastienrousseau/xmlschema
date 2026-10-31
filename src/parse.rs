@@ -279,7 +279,7 @@ fn parse_schema_at(
     }
 
     for (name, &node) in &session.tops.attributes {
-        if let Some(decl) = parse_attribute(&session.ctx(&schema), node)? {
+        if let Some(decl) = parse_attribute(&session.ctx(&schema), node) {
             let _ = schema.attributes.insert(name.clone(), decl);
         }
     }
@@ -343,13 +343,10 @@ fn load_referenced(
 
 /// The `xs:schema` element, or why the document is not a schema.
 fn schema_root(doc: &Document) -> Result<NodeId, SchemaError> {
-    let Some(root) = doc.root_element() else {
-        return err("the schema has no root element");
-    };
-    if local_name(doc, root) != Some("schema") {
-        return err("the root element must be xs:schema");
+    match doc.root_element() {
+        Some(root) if local_name(doc, root) == Some("schema") => Ok(root),
+        _ => err("the root element must be xs:schema"),
     }
-    Ok(root)
 }
 
 /// Index every top-level declaration by name.
@@ -1087,21 +1084,17 @@ fn parse_identities(doc: &Document, id: NodeId) -> Vec<Identity> {
             Some("keyref") => IdentityKind::KeyRef,
             _ => continue,
         };
-        let Some(selector) = first_child_named(doc, child, "selector")
+        let selector = first_child_named(doc, child, "selector")
             .and_then(|s| doc.attribute(s, "xpath"))
-        else {
-            continue;
-        };
+            .unwrap_or_default()
+            .to_owned();
         let fields: Vec<String> = children_named(doc, child, "field")
             .filter_map(|f| doc.attribute(f, "xpath").map(str::to_owned))
             .collect();
-        if fields.is_empty() {
-            continue;
-        }
         out.push(Identity {
             kind,
             name: doc.attribute(child, "name").unwrap_or_default().to_owned(),
-            selector: selector.to_owned(),
+            selector,
             fields,
             refer: doc
                 .attribute(child, "refer")
@@ -1284,8 +1277,8 @@ fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
             Ok(Content::Choice(group_particles(ctx, id, "choice")?))
         }
         Some("all") => Ok(Content::All(group_particles(ctx, id, "all")?)),
-        Some("group") => {
-            // A named group carries exactly one model group.
+        _ => {
+            // A named group carries one model group, referenced via `ref`.
             let Some(reference) = doc.attribute(id, "ref") else {
                 // A definition rather than a reference.
                 return match model_group(doc, id) {
@@ -1328,7 +1321,6 @@ fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
             }
             Ok(content)
         }
-        _ => Ok(Content::Empty),
     }
 }
 
@@ -1394,10 +1386,9 @@ fn group_particles(
 ) -> Result<Vec<Particle>, SchemaError> {
     let mut particles = parse_particles(ctx, id)?;
     let group = parse_occurs(ctx.doc, id);
-    if group == Occurs::default() {
-        return Ok(particles);
-    }
-    if let [only] = particles.as_mut_slice() {
+    if group != Occurs::default()
+        && let [only] = particles.as_mut_slice()
+    {
         only.occurs = Occurs {
             min: only.occurs.min.saturating_mul(group.min),
             max: match (only.occurs.max, group.max) {
@@ -1490,13 +1481,12 @@ fn parse_attributes_uncached(
                 continue;
             };
             hosts.push(node);
-            if let Some(base) = doc.attribute(node, "base") {
-                let local = base.rsplit(':').next().unwrap_or(base);
-                if let (Some(&target), Some(inner)) =
+            if let Some(base) = doc.attribute(node, "base")
+                && let local = base.rsplit(':').next().unwrap_or(base)
+                && let (Some(&target), Some(inner)) =
                     (ctx.tops.complex_types.get(local), ctx.deeper())
-                {
-                    out.extend(parse_attributes(&inner, target)?);
-                }
+            {
+                out.extend(parse_attributes(&inner, target)?);
             }
         }
     }
@@ -1505,7 +1495,7 @@ fn parse_attributes_uncached(
         for &child in doc.children(host) {
             match local_name(doc, child) {
                 Some("attribute") => {
-                    if let Some(decl) = parse_attribute(ctx, child)? {
+                    if let Some(decl) = parse_attribute(ctx, child) {
                         out.push(decl);
                     }
                 }
@@ -1539,24 +1529,14 @@ fn parse_attributes_uncached(
 }
 
 /// One `xs:attribute`, following `ref` if it has one.
-fn parse_attribute(
-    ctx: &Ctx,
-    id: NodeId,
-) -> Result<Option<AttributeDecl>, SchemaError> {
+fn parse_attribute(ctx: &Ctx, id: NodeId) -> Option<AttributeDecl> {
     let doc = ctx.doc;
     let use_attr = doc.attribute(id, "use");
 
     if let Some(reference) = doc.attribute(id, "ref") {
         let local = reference.rsplit(':').next().unwrap_or(reference);
-        let Some(&target) = ctx.tops.attributes.get(local) else {
-            return Ok(None);
-        };
-        let Some(inner) = ctx.deeper() else {
-            return Ok(None);
-        };
-        let Some(mut decl) = parse_attribute(&inner, target)? else {
-            return Ok(None);
-        };
+        let &target = ctx.tops.attributes.get(local)?;
+        let mut decl = parse_attribute_decl(ctx, target)?;
         // This occurrence's own `use` and `fixed` win over the
         // declaration's.
         decl.required = use_attr == Some("required");
@@ -1564,12 +1544,15 @@ fn parse_attribute(
         if let Some(fixed) = doc.attribute(id, "fixed") {
             decl.fixed = Some(fixed.to_owned());
         }
-        return Ok(Some(decl));
+        return Some(decl);
     }
+    parse_attribute_decl(ctx, id)
+}
 
-    let Some(name) = doc.attribute(id, "name") else {
-        return Ok(None);
-    };
+fn parse_attribute_decl(ctx: &Ctx, id: NodeId) -> Option<AttributeDecl> {
+    let doc = ctx.doc;
+    let use_attr = doc.attribute(id, "use");
+    let name = doc.attribute(id, "name")?;
     let simple_type = if let Some(t) = doc.attribute(id, "type") {
         match resolve_named_type(ctx, t) {
             Content::Simple(st) => *st,
@@ -1580,13 +1563,13 @@ fn parse_attribute(
     } else {
         SimpleType::atomic(BuiltIn::String)
     };
-    Ok(Some(AttributeDecl {
+    Some(AttributeDecl {
         name: name.to_owned(),
         required: use_attr == Some("required"),
         simple_type,
         fixed: doc.attribute(id, "fixed").map(str::to_owned),
         prohibited: use_attr == Some("prohibited"),
-    }))
+    })
 }
 
 /// Read a `simpleType` into the model.
@@ -1608,9 +1591,7 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         return parse_union(ctx, union, Facets::default());
     }
 
-    let Some(restriction) = first_child_named(doc, id, "restriction") else {
-        return SimpleType::atomic(BuiltIn::String);
-    };
+    let restriction = first_child_named(doc, id, "restriction").unwrap_or(id);
 
     // A restriction whose base is a named simple type inherits its
     // variety and facets; length facets on a list still count *items*.

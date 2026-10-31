@@ -539,4 +539,71 @@ fn multiple_patterns_in_one_restriction_are_alternated_and_inherited_ones_conjoi
         !accepts(&schema, "A1234"),
         "must also satisfy base maxLength=4"
     );
+
+    // A derived type without its own pattern inherits the base pattern;
+    // base64Binary length/enumeration and restricted unions are also checked.
+    let extra_xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="PatBase">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NoPatBase">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NoPatDerived">
+    <xs:restriction base="NoPatBase">
+      <xs:maxLength value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PatInherited">
+    <xs:restriction base="PatBase">
+      <xs:maxLength value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="B64Empty">
+    <xs:restriction base="xs:base64Binary">
+      <xs:length value="0"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="B64One">
+    <xs:restriction base="xs:base64Binary">
+      <xs:length value="1"/>
+      <xs:enumeration value="YQ=="/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="RestrictedUnion">
+    <xs:restriction>
+      <xs:simpleType>
+        <xs:union memberTypes="xs:integer xs:string"/>
+      </xs:simpleType>
+      <xs:enumeration value="42"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="v" type="PatInherited"/>
+  <xs:element name="b0" type="B64Empty"/>
+  <xs:element name="b1" type="B64One"/>
+  <xs:element name="u" type="RestrictedUnion"/>
+  <xs:element name="fb" type="xs:boolean" fixed="true"/>
+  <xs:element name="fh" type="xs:hexBinary" fixed="ab"/>
+  <xs:element name="f64" type="xs:base64Binary" fixed="YQ=="/>
+</xs:schema>"#;
+    let extra = parse_schema(extra_xsd).expect("schema parses");
+    let valid_xml = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &extra).is_valid()
+    };
+    assert!(valid_xml("<v>abc</v>"));
+    assert!(!valid_xml("<v>ABC</v>"));
+    assert!(valid_xml("<b0></b0>"));
+    assert!(valid_xml("<b1>Y Q = =</b1>"));
+    assert!(!valid_xml("<b1>YWI=</b1>"));
+    assert!(valid_xml("<u>42</u>"));
+    assert!(!valid_xml("<u>99</u>"));
+    assert!(!valid_xml("<fb>notabool</fb>"));
+    assert!(!valid_xml("<fh>zz</fh>"));
+    assert!(!valid_xml("<f64>!!!</f64>"));
 }

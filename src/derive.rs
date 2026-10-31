@@ -258,25 +258,12 @@ pub fn is_valid_restriction(
         }
 
         // A wildcard cannot restrict an element or a group: it admits
-        // more than either.
-        (Term::Wildcard(_), Term::Element { .. } | Term::Group { .. }) => false,
-
-        // A group restricting an element. The specification has no
-        // case for this, but it eliminates *pointless particles*
-        // first: a group of one, occurring exactly once, is the
-        // particle it contains. Anything richer genuinely has no rule.
-        (
-            Term::Group {
-                particles,
-                compositor: _,
-            },
-            Term::Element { .. },
-        ) => match particles.as_slice() {
-            [only] if derived.min == 1 && derived.max == Some(1) => {
-                is_valid_restriction(only, base, type_derives)
-            }
-            _ => false,
-        },
+        // more than either. Pointless single-particle groups were
+        // already unwrapped by `collapsed()` above, so any remaining
+        // group either has multiple particles or a non-unit occurrence
+        // range and cannot restrict a single element.
+        (Term::Wildcard(_), Term::Element { .. } | Term::Group { .. })
+        | (Term::Group { .. }, Term::Element { .. }) => false,
 
         // An element restricting a group. Wrapping the element in a
         // group and recursing would be neat and does not terminate:

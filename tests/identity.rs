@@ -236,4 +236,26 @@ fn identity_constraint_schema_rules_are_enforced() {
     ] {
         assert!(parse_schema(&schema(bad)).is_err(), "{bad}");
     }
+
+    // A keyref naming a missing constraint or an uncompilable XPath does not blame the document.
+    let s = parse_schema(&schema(
+        r#"<xs:element name="r">
+             <xs:complexType>
+               <xs:sequence>
+                 <xs:element name="a" type="xs:string" maxOccurs="unbounded"/>
+               </xs:sequence>
+             </xs:complexType>
+             <xs:unique name="badXpath">
+               <xs:selector xpath="child::a::b"/>
+               <xs:field xpath="."/>
+             </xs:unique>
+             <xs:keyref name="dangling" refer="nonexistent">
+               <xs:selector xpath="a"/>
+               <xs:field xpath="."/>
+             </xs:keyref>
+           </xs:element>"#,
+    ))
+    .expect("schema parses");
+    let doc = oxml::parse("<r><a>1</a></r>").expect("well-formed");
+    assert!(validate(&doc, &s).is_valid());
 }

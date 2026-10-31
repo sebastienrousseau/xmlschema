@@ -400,6 +400,14 @@ fn a_repeated_multi_particle_group_is_reported_as_unenforceable() {
                  </xs:sequence>
                </xs:complexType>
              </xs:element>
+             <xs:element name="r2">
+               <xs:complexType>
+                 <xs:sequence minOccurs="0">
+                   <xs:element name="a" type="xs:string"/>
+                   <xs:element name="b" type="xs:string"/>
+                 </xs:sequence>
+               </xs:complexType>
+             </xs:element>
            </xs:schema>"#;
     let doc = oxml::parse(xsd).expect("well-formed");
     let gaps = xmlschema::support::unsupported(&doc);
@@ -613,16 +621,61 @@ fn substitution_groups_suspend_the_check() {
     let s = parse_schema(&schema(
         r#"<xs:element name="head"/>
            <xs:element name="m1" substitutionGroup="head"/>
-           <xs:complexType name="base">
-             <xs:sequence><xs:element ref="head"/></xs:sequence>
-           </xs:complexType>
-           <xs:complexType name="derived">
-             <xs:complexContent>
-               <xs:restriction base="base">
-                 <xs:sequence><xs:element ref="m1"/></xs:sequence>
-               </xs:restriction>
-             </xs:complexContent>
-           </xs:complexType>"#,
+           <xs:complexType name="base"><xs:sequence><xs:element ref="head"/></xs:sequence></xs:complexType>
+           <xs:complexType name="derived"><xs:complexContent><xs:restriction base="base"><xs:sequence><xs:element ref="m1"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>"#,
     ));
     assert!(s.is_ok(), "a member of the group is a valid restriction");
+
+    // A group restricting a wildcard fails if a nested wildcard widens namespaces.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="base"><xs:sequence><xs:any namespace="urn:a" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+               <xs:complexType name="derived"><xs:complexContent><xs:restriction base="base"><xs:sequence><xs:element name="a"/><xs:any namespace="urn:b"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>"#
+        ))
+        .is_err()
+    );
+
+    // Multi-hop complexType derivation, simpleType narrowing, cyclic groups,
+    // annotations inside sequences, and missing/empty restriction bases.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:simpleType name="s1"><xs:restriction base="xs:string"/></xs:simpleType>
+               <xs:element name="refEl" type="xs:string"/>
+               <xs:group name="cyc"><xs:sequence><xs:group ref="cyc"/></xs:sequence></xs:group>
+               <xs:group name="emptyGrp"/>
+               <xs:complexType name="grand"><xs:sequence><xs:element name="x" minOccurs="0"/><xs:element name="y" minOccurs="0"/><xs:element ref="refEl" minOccurs="0"/></xs:sequence></xs:complexType>
+               <xs:complexType name="choiceBase"><xs:choice><xs:element name="x"/><xs:element name="y"/></xs:choice></xs:complexType>
+               <xs:complexType name="choiceDerived"><xs:complexContent><xs:restriction base="choiceBase"><xs:choice><xs:element name="x"/></xs:choice></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="mid"><xs:complexContent><xs:restriction base="grand"><xs:sequence><xs:element name="x"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="leaf"><xs:complexContent><xs:restriction base="mid"><xs:sequence><xs:element name="x"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="emptyBase"/>
+               <xs:complexType name="noBase"><xs:complexContent><xs:restriction/></xs:complexContent></xs:complexType>
+               <xs:complexType name="unknownBase"><xs:complexContent><xs:restriction base="missing"/></xs:complexContent></xs:complexType>
+               <xs:complexType name="fromEmpty"><xs:complexContent><xs:restriction base="emptyBase"/></xs:complexContent></xs:complexType>
+               <xs:complexType name="fromCycGroup"><xs:complexContent><xs:restriction base="grand"><xs:group ref="cyc"/></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="fromEmptyGroup"><xs:complexContent><xs:restriction base="grand"><xs:group ref="emptyGrp"/></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="fromMissingGroup"><xs:complexContent><xs:restriction base="grand"><xs:group ref="noSuchGrp"/></xs:restriction></xs:complexContent></xs:complexType>
+               <xs:complexType name="baseHolder"><xs:sequence><xs:annotation/><xs:element name="e" type="grand"/><xs:element name="s" type="xs:string"/></xs:sequence></xs:complexType>
+               <xs:complexType name="derivedHolder"><xs:complexContent><xs:restriction base="baseHolder"><xs:sequence><xs:element name="e" type="leaf"/><xs:element name="s" type="s1"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>"#
+        ))
+        .is_ok()
+    );
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t1"><xs:sequence><xs:element name="x"/></xs:sequence></xs:complexType>
+               <xs:complexType name="t2"><xs:sequence><xs:element name="x"/></xs:sequence></xs:complexType>
+               <xs:complexType name="base"><xs:sequence><xs:element name="e" type="t1"/></xs:sequence></xs:complexType>
+               <xs:complexType name="bad1"><xs:complexContent><xs:restriction base="base"><xs:sequence><xs:element name="e" type="t2"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>"#
+        ))
+        .is_err()
+    );
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t1"><xs:sequence><xs:element name="x"/></xs:sequence></xs:complexType>
+               <xs:complexType name="cyc"><xs:complexContent><xs:extension base="cyc"/></xs:complexContent></xs:complexType>
+               <xs:complexType name="base"><xs:sequence><xs:element name="e" type="t1"/></xs:sequence></xs:complexType>
+               <xs:complexType name="bad2"><xs:complexContent><xs:restriction base="base"><xs:sequence><xs:element name="e" type="cyc"/></xs:sequence></xs:restriction></xs:complexContent></xs:complexType>"#
+        ))
+        .is_err()
+    );
 }

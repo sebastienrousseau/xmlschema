@@ -629,8 +629,8 @@ fn duration_seconds(v: &str) -> Option<f64> {
         for c in part.chars() {
             if c.is_ascii_digit() || c == '.' {
                 digits.push(c);
-            } else if let Some((_, scale)) = units.iter().find(|(d, _)| *d == c)
-            {
+            } else {
+                let (_, scale) = units.iter().find(|(d, _)| *d == c)?;
                 total += digits.parse::<f64>().ok()? * scale;
                 digits.clear();
             }
@@ -758,9 +758,7 @@ fn list_of(v: &str, item: fn(&str) -> bool) -> bool {
 /// `xs:language` — an RFC 3066 tag.
 fn is_language(v: &str) -> bool {
     let mut parts = v.split('-');
-    let Some(first) = parts.next() else {
-        return false;
-    };
+    let first = parts.next().unwrap_or_default();
     if first.is_empty()
         || first.len() > 8
         || !first.bytes().all(|b| b.is_ascii_alphabetic())
@@ -879,26 +877,24 @@ fn is_date(v: &str) -> bool {
     else {
         return false;
     };
-    if !is_year(year) || !two_digit(month, 1, 12) {
+    if !is_year(year) || !two_digit(month, 1, 12) || !two_digit(day, 1, 31) {
         return false;
     }
-    let (Ok(m), Ok(d)) = (month.parse::<u32>(), day.parse::<u32>()) else {
-        return false;
-    };
-    two_digit(day, 1, 31) && d <= days_in_month(m, year)
+    let m = month.parse::<u32>().unwrap_or(0);
+    let d = day.parse::<u32>().unwrap_or(0);
+    d <= days_in_month(m, year)
 }
 
-/// Days in a month, honouring leap years so `2001-02-29` is rejected.
+/// Days in a month (`1..=12`), honouring leap years so `2001-02-29` is rejected.
 fn days_in_month(month: u32, year: &str) -> u32 {
     match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
         2 => {
             let y: i64 = year.parse().unwrap_or(1);
             let leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
             if leap { 29 } else { 28 }
         }
-        _ => 0,
+        _ => 31,
     }
 }
 
@@ -1039,9 +1035,6 @@ fn components(
             return false;
         }
         if fractional && !is_decimal(&digits) {
-            return false;
-        }
-        if !fractional && !digits.bytes().all(|b| b.is_ascii_digit()) {
             return false;
         }
         next += position + 1;

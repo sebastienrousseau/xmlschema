@@ -217,23 +217,8 @@ impl Pattern {
     /// as an alternation (logical OR).
     #[must_use]
     pub(crate) fn combine_or(self, other: Self) -> Self {
-        let branches = match (self.root, other.root) {
-            (Node::Alternation(mut a), Node::Alternation(b)) => {
-                a.extend(b);
-                a
-            }
-            (Node::Alternation(mut a), b) => {
-                a.push(b);
-                a
-            }
-            (a, Node::Alternation(mut b)) => {
-                b.insert(0, a);
-                b
-            }
-            (a, b) => vec![a, b],
-        };
         Self {
-            root: Node::Alternation(branches),
+            root: Node::Alternation(vec![self.root, other.root]),
             source: format!("{}|{}", self.source, other.source),
         }
     }
@@ -242,23 +227,8 @@ impl Pattern {
     /// as a conjunction (logical AND).
     #[must_use]
     pub(crate) fn combine_and(self, other: Self) -> Self {
-        let clauses = match (self.root, other.root) {
-            (Node::All(mut a), Node::All(b)) => {
-                a.extend(b);
-                a
-            }
-            (Node::All(mut a), b) => {
-                a.push(b);
-                a
-            }
-            (a, Node::All(mut b)) => {
-                b.insert(0, a);
-                b
-            }
-            (a, b) => vec![a, b],
-        };
         Self {
-            root: Node::All(clauses),
+            root: Node::All(vec![self.root, other.root]),
             source: other.source,
         }
     }
@@ -290,13 +260,13 @@ impl Parser<'_> {
             if c == '|' || c == ')' {
                 break;
             }
-            items.push(self.parse_repeat()?);
+            items.push(self.parse_repeat(c)?);
         }
         Ok(Node::Sequence(items))
     }
 
-    fn parse_repeat(&mut self) -> Result<Node, PatternError> {
-        let atom = self.parse_atom()?;
+    fn parse_repeat(&mut self, first: char) -> Result<Node, PatternError> {
+        let atom = self.parse_atom(first)?;
         let (min, max) = match self.peek() {
             Some('?') => {
                 self.pos += 1;
@@ -387,9 +357,9 @@ impl Parser<'_> {
         Ok((min, max))
     }
 
-    fn parse_atom(&mut self) -> Result<Node, PatternError> {
-        match self.peek() {
-            Some('(') => {
+    fn parse_atom(&mut self, first: char) -> Result<Node, PatternError> {
+        match first {
+            '(' => {
                 if self.depth >= MAX_PATTERN_DEPTH {
                     return Err(PatternError {
                         message: "pattern exceeds maximum nesting depth"
@@ -409,15 +379,15 @@ impl Parser<'_> {
                 self.pos += 1;
                 Ok(inner)
             }
-            Some('[') => {
+            '[' => {
                 self.pos += 1;
                 self.parse_class()
             }
-            Some('.') => {
+            '.' => {
                 self.pos += 1;
                 Ok(Node::Any)
             }
-            Some('\\') => {
+            '\\' => {
                 self.pos += 1;
                 let c = self.peek().ok_or_else(|| PatternError {
                     message: "trailing backslash".to_owned(),
@@ -437,19 +407,16 @@ impl Parser<'_> {
             // when meant literally, and every other engine rejects
             // them here. Treating one as a literal would turn a typo
             // into a pattern that quietly matches the wrong thing.
-            Some(c @ ('*' | '+' | '?')) => Err(PatternError {
+            c @ ('*' | '+' | '?') => Err(PatternError {
                 message: format!(
                     "nothing to repeat before `{c}` at position {}",
                     self.pos
                 ),
             }),
-            Some(c) => {
+            c => {
                 self.pos += 1;
                 Ok(Node::Literal(c))
             }
-            None => Err(PatternError {
-                message: "unexpected end of pattern".to_owned(),
-            }),
         }
     }
 
@@ -549,9 +516,7 @@ impl Parser<'_> {
                     .is_some_and(|n| *n != ']' && *n != '[')
             {
                 self.pos += 1;
-                let mut hi = self.peek().ok_or_else(|| PatternError {
-                    message: "unterminated range".to_owned(),
-                })?;
+                let mut hi = self.chars[self.pos];
                 self.pos += 1;
                 // The upper bound may be escaped, as in `[a-\}]`.
                 if hi == '\\' {

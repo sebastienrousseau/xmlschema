@@ -191,4 +191,25 @@ fn a_reference_without_a_location_is_skipped() {
     </xs:schema>"#;
     let parts: &[(&str, &str)] = &[];
     assert!(parse_schema_with(main, &parts).is_ok());
+
+    // Included top-level attributes and deep include chains (> 64) are handled safely.
+    let mut chain_docs: Vec<(String, String)> = Vec::new();
+    for i in 0..68 {
+        let next = format!("s{}.xsd", i + 1);
+        let doc = format!(
+            r#"<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+                 <xs:include schemaLocation="{next}"/>
+                 <xs:attribute name="attr{i}" type="xs:string"/>
+               </xs:schema>"#
+        );
+        chain_docs.push((format!("s{i}.xsd"), doc));
+    }
+    let refs: Vec<(&str, &str)> = chain_docs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    let slice: &[(&str, &str)] = &refs;
+    let parsed =
+        parse_schema_with(&chain_docs[0].1, &slice).expect("deep chain parses");
+    assert!(parsed.attributes.contains_key("attr1"));
 }

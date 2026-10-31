@@ -500,10 +500,26 @@ fn the_name_productions_reach_beyond_ascii() {
     assert!(ty("NCName").accepts("Ünïcödé"));
     assert!(ty("NCName").accepts("Ωμέγα"));
     assert!(ty("NCName").accepts("日本語"));
+    assert!(ty("Name").accepts("\u{FDF0}"));
+    assert!(ty("Name").accepts("\u{10000}"));
+    assert!(!ty("Name").accepts("\u{F0000}"));
     assert!(
         ty("Name").accepts("_a\u{0300}"),
         "a combining mark may follow"
     );
     assert!(!ty("Name").accepts("\u{0300}a"), "but may not lead");
     assert!(!ty("NCName").accepts("a b"));
+    assert_eq!(ty("integer").order_key("42"), Some(42.0));
+    assert!(!ty("nonPositiveInteger").accepts("abc"));
+    assert!(!ty("time").accepts("12:00:60"));
+    assert!(!ty("time").accepts("12:00:00.x"));
+    assert!(ty("time").accepts("24:00:00.00"));
+    assert!(!ty("time").accepts("24:00:00.01"));
+    assert!(!ty("gYearMonth").accepts("2026"));
+    assert!(!ty("gMonthDay").accepts("05-01"));
+    assert!(!ty("gMonthDay").accepts("--05"));
+    assert!(!ty("duration").accepts("PT1X"));
+    assert!(!ty("duration").accepts("PY"));
+    assert!(!ty("duration").accepts("P1"));
+    assert!(!ty("duration").accepts("PT.S"));
 }

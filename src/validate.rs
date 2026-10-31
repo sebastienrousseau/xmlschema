@@ -99,20 +99,16 @@ pub fn validate(doc: &Document, schema: &Schema) -> Report {
         report: Report::default(),
     };
 
-    let Some(root) = doc.root_element() else {
-        v.report.violations.push(Violation {
-            path: "/".to_owned(),
-            message: "the document has no root element".to_owned(),
-        });
-        return v.report;
-    };
-
-    let name = doc
-        .element_name(root)
+    let root = doc.root_element();
+    let name = root
+        .and_then(|r| doc.element_name(r))
         .map(|n| n.local.clone())
         .unwrap_or_default();
 
-    let Some(decl) = schema.element(&name) else {
+    if let (Some(root), Some(decl)) = (root, schema.element(&name)) {
+        v.check_element(root, decl, &format!("/{name}"));
+        v.check_references();
+    } else {
         v.report.violations.push(Violation {
             path: format!("/{name}"),
             message: format!(
@@ -126,11 +122,7 @@ pub fn validate(doc: &Document, schema: &Schema) -> Report {
                     .join(", ")
             ),
         });
-        return v.report;
-    };
-
-    v.check_element(root, decl, &format!("/{name}"));
-    v.check_references();
+    }
     v.report
 }
 
@@ -428,13 +420,13 @@ impl<'a> Validator<'a> {
         path: &str,
     ) -> usize {
         let mut id_attrs = 0usize;
-        for &attr in self.doc.attribute_nodes(node) {
+        for &attr in
+            std::iter::once(&node).chain(self.doc.attribute_nodes(node))
+        {
             let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
                 continue;
             };
-            let Some(name) = self.doc.name(a.name) else {
-                continue;
-            };
+            let name = self.doc.name(a.name).expect("attribute has a name");
             let local = name.local.clone();
             let value = a.value;
             if name.namespace.as_deref() == Some(XSI) || local == "xmlns" {
@@ -633,24 +625,21 @@ impl<'a> Validator<'a> {
     /// language, and a superset engine runs it unchanged.
     fn check_identities(&mut self, node: NodeId, decl: &Particle, path: &str) {
         for identity in &decl.identities {
-            let Ok(selector) = XPath::compile(&identity.selector) else {
+            let (Ok(selector), Some(fields)) = (
+                XPath::compile(&identity.selector),
+                identity
+                    .fields
+                    .iter()
+                    .map(|f| XPath::compile(f).ok())
+                    .collect::<Option<Vec<XPath>>>(),
+            ) else {
                 // An expression this engine cannot compile constrains
                 // nothing; `support::unsupported` reports the schema
                 // rather than the document being blamed.
                 continue;
             };
-            let Some(fields) = identity
-                .fields
-                .iter()
-                .map(|f| XPath::compile(f).ok())
-                .collect::<Option<Vec<XPath>>>()
-            else {
-                continue;
-            };
             let selected = selector.evaluate_from(self.doc, node);
-            let Some(nodes) = selected.nodes() else {
-                continue;
-            };
+            let nodes = selected.nodes().unwrap_or_default();
 
             let mut tuples: Vec<Vec<String>> = Vec::new();
             let mut incomplete = false;

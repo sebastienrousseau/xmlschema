@@ -109,13 +109,10 @@ pub fn unsupported(doc: &Document) -> Vec<Unsupported> {
 
     let mut out = Vec::new();
     for id in doc.descendants() {
-        if !doc.is_element(id) {
-            continue;
-        }
-        let Some(name) = doc.element_name(id).map(|n| n.local.clone()) else {
+        let Some(name) = doc.element_name(id).map(|n| n.local.as_str()) else {
             continue;
         };
-        check_element(doc, id, &name, &local_types, &mut out);
+        check_element(doc, id, name, &local_types, &mut out);
     }
     out.sort_by(|a, b| a.construct.cmp(&b.construct));
     out.dedup();

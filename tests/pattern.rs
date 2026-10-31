@@ -564,4 +564,12 @@ fn separator_categories_distinguish_spaces_lines_and_paragraphs() {
     assert!(m(r"\P{Zs}+", "\u{2028}\u{2029}"));
     assert!(m(r"\p{Zl}", "\u{2028}"));
     assert!(m(r"\p{Zp}", "\u{2029}"));
+    assert!(Pattern::compile("a{1,999999999999999999999999999999}").is_err());
+    assert!(m(r"\i", "\u{FDF0}"));
+    assert!(m(r"\i", "\u{10000}"));
+    assert!(!m(r"\i", "\u{F0000}"));
+    assert!(m("(ab){0}", ""));
+    assert!(!m("(ab){0}", "ab"));
+    assert!(!m("(ab){1}", "abab"));
+    assert!(m("(ab){0,2}", "abab"));
 }

@@ -677,4 +677,38 @@ fn top_level_attributes_and_fixed_empty_elements_are_validated() {
         !valid(r#"<r id1="a" id2="b"><twelve>12</twelve></r>"#),
         "two xs:ID attributes on one element are rejected"
     );
+
+    // Additional coverage: unconstrained fixed elements, whitespace in Empty content,
+    // choice with non-matching wildcard branch, declared xs:ID attributes, and
+    // xs:anyAttribute with ##local and processContents="skip".
+    let extra_xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="fixedAny" fixed="exact"/>
+  <xs:element name="emptyEl"><xs:complexType/></xs:element>
+  <xs:element name="choiceWild">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element name="a" type="xs:string"/>
+        <xs:any namespace="urn:other"/>
+      </xs:choice>
+      <xs:attribute name="idA" type="xs:ID"/>
+      <xs:attribute name="idB" type="xs:ID"/>
+      <xs:anyAttribute namespace='##local' processContents="skip"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let extra_schema = parse_schema(extra_xsd).expect("schema parses");
+    let valid_extra = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &extra_schema).is_valid()
+    };
+    assert!(valid_extra("<fixedAny>exact</fixedAny>"));
+    assert!(!valid_extra("<fixedAny>wrong</fixedAny>"));
+    assert!(valid_extra("<emptyEl>   </emptyEl>"));
+    assert!(valid_extra(
+        r#"<choiceWild idA="x" localAttr="1"><a>ok</a></choiceWild>"#
+    ));
+    assert!(!valid_extra(
+        r#"<choiceWild idA="x" idB="y"><b/></choiceWild>"#
+    ));
 }

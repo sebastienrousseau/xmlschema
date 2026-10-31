@@ -123,11 +123,12 @@ impl Facets {
         if self.enumeration.is_empty() {
             self.enumeration.clone_from(&base.enumeration);
         }
-        self.pattern = match (&base.pattern, self.pattern.take()) {
-            (Some(b), Some(d)) => Some(b.clone().combine_and(d)),
-            (Some(b), None) => Some(b.clone()),
-            (None, d) => d,
-        };
+        if let Some(b) = &base.pattern {
+            self.pattern = Some(match self.pattern.take() {
+                Some(d) => b.clone().combine_and(d),
+                None => b.clone(),
+            });
+        }
         self.min_length = self.min_length.or(base.min_length);
         self.max_length = self.max_length.or(base.max_length);
         self.length = self.length.or(base.length);
