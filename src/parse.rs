@@ -4,7 +4,7 @@
 //! Reading an `.xsd` into a [`Schema`].
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use oxml::{Document, NodeId};
 
@@ -215,6 +215,7 @@ fn parse_schema_at(
     let root = schema_root(&doc)?;
     check_structure(&doc)?;
     check_ids(&doc)?;
+    check_identities_structure(&doc)?;
 
     let tops = index_top_level(&doc, root);
     check_derivation(&doc, &tops)?;
@@ -236,6 +237,7 @@ fn parse_schema_at(
             .attribute(root, "targetNamespace")
             .map(str::to_owned),
         elements: BTreeMap::new(),
+        attributes: BTreeMap::new(),
         named_simple_types: BTreeMap::new(),
         named_complex_types: BTreeMap::new(),
     };
@@ -256,6 +258,9 @@ fn parse_schema_at(
         for (name, ty) in other.named_complex_types {
             let _ = schema.named_complex_types.entry(name).or_insert(ty);
         }
+        for (name, attr) in other.attributes {
+            let _ = schema.attributes.entry(name).or_insert(attr);
+        }
         for (name, particle) in other.elements {
             let _ = schema.elements.entry(name).or_insert(particle);
         }
@@ -270,6 +275,12 @@ fn parse_schema_at(
         {
             let st = parse_simple_type(&session.ctx(&schema), child);
             let _ = schema.named_simple_types.insert(name.to_owned(), st);
+        }
+    }
+
+    for (name, &node) in &session.tops.attributes {
+        if let Some(decl) = parse_attribute(&session.ctx(&schema), node)? {
+            let _ = schema.attributes.insert(name.clone(), decl);
         }
     }
 
@@ -483,8 +494,12 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
 
         // Two attributes of one name on a single type, however they
         // are spelled.
-        if matches!(name, "complexType" | "attributeGroup" | "extension") {
+        if matches!(
+            name,
+            "complexType" | "attributeGroup" | "extension" | "restriction"
+        ) {
             check_attribute_names(doc, id)?;
+            check_attribute_order(name, &children)?;
         }
 
         // Element Declarations Consistent: two elements of the same
@@ -500,6 +515,198 @@ fn check_structure(doc: &Document) -> Result<(), SchemaError> {
             && doc.attribute(id, "name").is_some()
         {
             return err(format!("xs:{name} has both `name` and `ref`"));
+        }
+    }
+    Ok(())
+}
+
+/// At most one `xs:anyAttribute` is permitted, and attribute
+/// declarations must follow the content model and precede
+/// `xs:anyAttribute`.
+fn check_attribute_order(
+    name: &str,
+    children: &[&str],
+) -> Result<(), SchemaError> {
+    let any_attrs = children.iter().filter(|&&c| c == "anyAttribute").count();
+    if any_attrs > 1 {
+        return err(format!(
+            "xs:{name} has {any_attrs} xs:anyAttribute children; \
+             at most one is permitted"
+        ));
+    }
+    let mut seen_attr = false;
+    let mut seen_any_attr = false;
+    for &child in children {
+        match child {
+            "group" | "all" | "choice" | "sequence"
+                if seen_attr || seen_any_attr =>
+            {
+                return err(format!(
+                    "xs:{child} must appear before attribute declarations \
+                     in xs:{name}"
+                ));
+            }
+            "attribute" | "attributeGroup" if seen_any_attr => {
+                return err(format!(
+                    "xs:{child} must appear before xs:anyAttribute in xs:{name}"
+                ));
+            }
+            "attribute" | "attributeGroup" => seen_attr = true,
+            "anyAttribute" => seen_any_attr = true,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Structural and `XPath` rules for `xs:unique`, `xs:key`, `xs:keyref`,
+/// `xs:selector`, and `xs:field`.
+fn check_identities_structure(doc: &Document) -> Result<(), SchemaError> {
+    let ncname = crate::datatype::Datatype::from_name("NCName");
+    let mut seen_names: BTreeSet<&str> = BTreeSet::new();
+    for id in doc.descendants() {
+        let Some(kind) = local_name(doc, id) else {
+            continue;
+        };
+        match kind {
+            "unique" | "key" | "keyref" => {
+                if doc.parent(id).and_then(|p| local_name(doc, p))
+                    != Some("element")
+                {
+                    return err(format!(
+                        "xs:{kind} is only permitted inside xs:element"
+                    ));
+                }
+                let Some(name) = doc.attribute(id, "name") else {
+                    return err(format!("xs:{kind} is missing `name`"));
+                };
+                if !ncname.is_some_and(|t| t.accepts(name)) {
+                    return err(format!(
+                        "xs:{kind} name `{name}` is not a valid NCName"
+                    ));
+                }
+                if !seen_names.insert(name) {
+                    return err(format!(
+                        "identity constraint `{name}` is declared twice"
+                    ));
+                }
+                if kind == "keyref" && doc.attribute(id, "refer").is_none() {
+                    return err("xs:keyref is missing `refer`");
+                }
+                if kind != "keyref" && doc.attribute(id, "refer").is_some() {
+                    return err(format!(
+                        "xs:{kind} may not carry a `refer` attribute"
+                    ));
+                }
+                check_identity_children(doc, id, kind)?;
+            }
+            "selector" | "field" => {
+                if !matches!(
+                    doc.parent(id).and_then(|p| local_name(doc, p)),
+                    Some("unique" | "key" | "keyref")
+                ) {
+                    return err(format!(
+                        "xs:{kind} is only permitted inside xs:unique, \
+                         xs:key, or xs:keyref"
+                    ));
+                }
+                if doc.attribute(id, "name").is_some() {
+                    return err(format!(
+                        "xs:{kind} may not carry a `name` attribute"
+                    ));
+                }
+                let Some(xpath) = doc.attribute(id, "xpath") else {
+                    return err(format!("xs:{kind} is missing `xpath`"));
+                };
+                if doc
+                    .children(id)
+                    .iter()
+                    .filter_map(|&c| local_name(doc, c))
+                    .any(|c| c != "annotation")
+                {
+                    return err(format!(
+                        "xs:{kind} may only contain xs:annotation"
+                    ));
+                }
+                check_identity_xpath(xpath, kind == "field")?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Check that an identity constraint contains one `xs:selector`
+/// followed by one or more `xs:field` elements.
+fn check_identity_children(
+    doc: &Document,
+    id: NodeId,
+    kind: &str,
+) -> Result<(), SchemaError> {
+    let kids: Vec<&str> = doc
+        .children(id)
+        .iter()
+        .filter_map(|&c| local_name(doc, c))
+        .filter(|&c| c != "annotation")
+        .collect();
+    let Some((&"selector", rest)) = kids.split_first() else {
+        return err(format!("xs:{kind} must begin with one xs:selector"));
+    };
+    if rest.is_empty() || rest.iter().any(|&c| c != "field") {
+        return err(format!(
+            "xs:{kind} must contain one xs:selector followed by one or \
+             more xs:field elements"
+        ));
+    }
+    Ok(())
+}
+
+/// Check the restricted `XPath` syntax XSD 1.0 §3.11.6 permits in
+/// `xs:selector` and `xs:field`.
+fn check_identity_xpath(
+    xpath: &str,
+    is_field: bool,
+) -> Result<(), SchemaError> {
+    if xpath.trim().is_empty() {
+        return err("identity constraint xpath must not be empty");
+    }
+    for branch in xpath.split('|') {
+        let b = branch.trim();
+        if b.is_empty() || b.starts_with('/') || b.ends_with('/') {
+            return err(format!("invalid identity constraint xpath `{xpath}`"));
+        }
+        let body = b
+            .strip_prefix(".//")
+            .or_else(|| b.strip_prefix("./"))
+            .unwrap_or(b);
+        let steps: Vec<&str> = body.split('/').collect();
+        for (i, &raw) in steps.iter().enumerate() {
+            let step = raw.trim();
+            let last = i + 1 == steps.len();
+            if step.is_empty()
+                || step == ".."
+                || step.contains(['[', ']', '(', ')'])
+            {
+                return err(format!(
+                    "invalid step `{step}` in identity constraint xpath"
+                ));
+            }
+            let is_attr =
+                step.starts_with('@') || step.starts_with("attribute::");
+            if is_attr && (!is_field || !last) {
+                return err(format!(
+                    "attribute step `{step}` is only permitted at the end \
+                     of an xs:field xpath"
+                ));
+            }
+            if let Some((axis, _)) = step.split_once("::")
+                && !matches!(axis, "child" | "attribute")
+            {
+                return err(format!(
+                    "axis `{axis}::` is not permitted in an identity \
+                     constraint xpath"
+                ));
+            }
         }
     }
     Ok(())
@@ -611,7 +818,7 @@ fn check_derivation(doc: &Document, tops: &Tops) -> Result<(), SchemaError> {
 /// applying it there is the kind of inconsistency a suite finds.
 fn check_ids(doc: &Document) -> Result<(), SchemaError> {
     let id_type = crate::datatype::Datatype::from_name("ID");
-    let mut seen: Vec<&str> = Vec::new();
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
     for node in doc.descendants() {
         let Some(id) = doc.attribute(node, "id") else {
             continue;
@@ -619,13 +826,12 @@ fn check_ids(doc: &Document) -> Result<(), SchemaError> {
         if !id_type.is_some_and(|t| t.accepts(id)) {
             return err(format!("`id=\"{id}\"` is not a valid xs:ID"));
         }
-        if seen.contains(&id) {
+        if !seen.insert(id) {
             return err(format!(
                 "`id=\"{id}\"` appears twice; the id attribute is an \
                  xs:ID and must be unique"
             ));
         }
-        seen.push(id);
     }
     Ok(())
 }
@@ -677,7 +883,7 @@ fn check_attribute_names(
     doc: &Document,
     id: NodeId,
 ) -> Result<(), SchemaError> {
-    let mut seen: Vec<&str> = Vec::new();
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
     for &child in doc.children(id) {
         if local_name(doc, child) != Some("attribute") {
             continue;
@@ -691,10 +897,9 @@ fn check_attribute_names(
         // A reference carries a prefix; the declaration it names does
         // not, and they are the same attribute.
         let local = name.rsplit(':').next().unwrap_or(name);
-        if seen.contains(&local) {
+        if !seen.insert(local) {
             return err(format!("`{local}` is declared twice on one type"));
         }
-        seen.push(local);
     }
     Ok(())
 }
@@ -716,15 +921,17 @@ fn check_declarations_consistent(
 ) -> Result<(), SchemaError> {
     let mut seen: Vec<(String, String)> = Vec::new();
     collect_declarations(doc, id, &mut seen);
-    for (i, (name, signature)) in seen.iter().enumerate() {
-        if let Some((_, other)) = seen[..i]
-            .iter()
-            .find(|(n, other)| n == name && other != signature)
-        {
-            return err(format!(
-                "`{name}` is declared twice in one content model with \
-                 different types (`{other}` and `{signature}`)"
-            ));
+    let mut by_name: BTreeMap<&str, &str> = BTreeMap::new();
+    for (name, signature) in &seen {
+        if let Some(&other) = by_name.get(name.as_str()) {
+            if other != signature {
+                return err(format!(
+                    "`{name}` is declared twice in one content model with \
+                     different types (`{other}` and `{signature}`)"
+                ));
+            }
+        } else {
+            let _ = by_name.insert(name.as_str(), signature.as_str());
         }
     }
     Ok(())
@@ -1095,10 +1302,31 @@ fn parse_model_group(ctx: &Ctx, id: NodeId) -> Result<Content, SchemaError> {
             let Some(inner) = ctx.deeper() else {
                 return Ok(Content::Any);
             };
-            match model_group(doc, target) {
-                Some(group) => parse_model_group(&inner, group),
-                None => Ok(Content::Empty),
+            let mut content = match model_group(doc, target) {
+                Some(group) => parse_model_group(&inner, group)?,
+                None => return Ok(Content::Empty),
+            };
+            let occurs = parse_occurs(doc, id);
+            if occurs != Occurs::default()
+                && let Content::Sequence(ref mut p)
+                | Content::Choice(ref mut p)
+                | Content::All(ref mut p) = content
+            {
+                if let [only] = p.as_mut_slice() {
+                    only.occurs = Occurs {
+                        min: only.occurs.min.saturating_mul(occurs.min),
+                        max: match (only.occurs.max, occurs.max) {
+                            (Some(a), Some(b)) => Some(a.saturating_mul(b)),
+                            _ => None,
+                        },
+                    };
+                } else if occurs.min == 0 {
+                    for item in p {
+                        item.occurs.min = 0;
+                    }
+                }
             }
+            Ok(content)
         }
         _ => Ok(Content::Empty),
     }
@@ -1132,18 +1360,20 @@ fn parse_complex_content(
         return Ok(own);
     }
 
-    // An extension appends its particles to the base's, which is only
-    // meaningful when both are sequences.
+    // An extension appends its particles to the base's.
     Ok(match (base, own) {
         (Content::Sequence(mut a), Content::Sequence(b)) => {
             a.extend(b);
             Content::Sequence(a)
         }
+        (Content::Sequence(mut a), Content::Choice(mut b)) => {
+            for p in &mut b {
+                p.occurs.min = 0;
+            }
+            a.extend(b);
+            Content::Sequence(a)
+        }
         (Content::Empty, own) => own,
-        // Anything else: the base decides. Appending a choice to a
-        // sequence, say, has no single content model, and taking the
-        // base is the reading that constrains rather than the one
-        // that lets everything through.
         (base, _) => base,
     })
 }
@@ -1301,16 +1531,9 @@ fn parse_attributes_uncached(
 
     // A later declaration of the same name replaces an inherited one,
     // which is how a restriction narrows what it inherited.
-    let mut seen: Vec<String> = Vec::new();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
     out.reverse();
-    out.retain(|d| {
-        if seen.contains(&d.name) {
-            false
-        } else {
-            seen.push(d.name.clone());
-            true
-        }
-    });
+    out.retain(|d| seen.insert(d.name.clone()));
     out.reverse();
     Ok(out)
 }
@@ -1389,12 +1612,11 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         return SimpleType::atomic(BuiltIn::String);
     };
 
-    // A restriction whose base is a list or union keeps that variety
-    // and adds facets to it; length facets then count *items*.
+    // A restriction whose base is a named simple type inherits its
+    // variety and facets; length facets on a list still count *items*.
     let inherited = doc
         .attribute(restriction, "base")
-        .and_then(|b| named_simple_type(b, ctx.schema))
-        .filter(|st| st.variety != Variety::Atomic);
+        .and_then(|b| named_simple_type(b, ctx.schema));
 
     let base_name = doc.attribute(restriction, "base").unwrap_or("string");
     let base = match resolve_named_type(ctx, base_name) {
@@ -1412,12 +1634,17 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         };
         match kind {
             "enumeration" => facets.enumeration.push(value.to_owned()),
-            // A pattern that does not compile constrains nothing.
-            // Dropping it here rather than failing keeps an
-            // unsupported *regex* from being reported as an invalid
-            // *document*; `support::unsupported` reports the schema.
+            // Multiple `<xs:pattern>` elements in a single restriction
+            // form an alternation (OR). A pattern that does not compile
+            // constrains nothing; `support::unsupported` reports the
+            // schema.
             "pattern" => {
-                facets.pattern = crate::pattern::Pattern::compile(value).ok();
+                if let Ok(compiled) = crate::pattern::Pattern::compile(value) {
+                    facets.pattern = Some(match facets.pattern.take() {
+                        Some(existing) => existing.combine_or(compiled),
+                        None => compiled,
+                    });
+                }
             }
             "minLength" => facets.min_length = value.parse().ok(),
             "maxLength" => facets.max_length = value.parse().ok(),
@@ -1448,6 +1675,7 @@ fn parse_simple_type(ctx: &Ctx, id: NodeId) -> SimpleType {
         }
     }
     if let Some(mut inherited) = inherited {
+        facets.inherit_from(&inherited.facets);
         inherited.facets = facets;
         return inherited;
     }

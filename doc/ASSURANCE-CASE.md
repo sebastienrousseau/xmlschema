@@ -48,9 +48,9 @@ in either direction fails the build.
 ## The evidence
 
 - `#![forbid(unsafe_code)]`, checked by a CI job.
-- The W3C XML Schema Test Suite (39,420 tests) runs in CI against a ratcheted baseline, currently 95.0% of 35,942 decided tests, and fails on movement in either direction.
+- The W3C XML Schema Test Suite (39,420 tests) runs in CI against a ratcheted baseline, currently 96.1% of 35,963 decided tests, and fails on movement in either direction.
 - Two `cargo-fuzz` targets — `parse_schema` and `validate` — run on every pull request.
-- 236 unit and integration tests; line coverage gated at a 95% floor.
+- 247 unit and integration tests; line coverage gated at a 95% floor.
 - An unsupported construct is *skipped and recorded*, never silently treated as valid, so the published rate cannot flatter itself with accidental agreement.
 
 ## What this case does *not* claim

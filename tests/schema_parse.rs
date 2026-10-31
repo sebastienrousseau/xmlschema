@@ -608,3 +608,34 @@ fn two_attributes_of_one_name_are_rejected() {
         .is_ok()
     );
 }
+
+#[test]
+fn any_attribute_appears_at_most_once_and_after_attributes() {
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:anyAttribute namespace='##any'/>
+                 <xs:anyAttribute namespace='##other'/>
+               </xs:complexType>"#,
+        ))
+        .is_err()
+    );
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:anyAttribute namespace='##any'/>
+                 <xs:attribute name="a" type="xs:string"/>
+               </xs:complexType>"#,
+        ))
+        .is_err()
+    );
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:complexType name="t">
+                 <xs:attribute name="a" type="xs:string"/>
+                 <xs:sequence><xs:element name="e" type="xs:string"/></xs:sequence>
+               </xs:complexType>"#,
+        ))
+        .is_err()
+    );
+}

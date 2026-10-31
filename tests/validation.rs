@@ -611,3 +611,70 @@ fn a_choice_branch_may_be_a_wildcard() {
     );
     assert!(valid("<r><other/></r>"), "the wildcard takes the rest");
 }
+
+#[test]
+fn top_level_attributes_and_fixed_empty_elements_are_validated() {
+    let xsd = r#"
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:t" xmlns:t="urn:t">
+  <xs:attribute name="topInt" type="xs:integer" fixed="42"/>
+  <xs:attribute name="id1" type="xs:ID"/>
+  <xs:attribute name="id2" type="xs:ID"/>
+  <xs:group name="optGroup">
+    <xs:sequence>
+      <xs:element name="a" type="xs:string"/>
+      <xs:element name="b" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:group name="singleGroup">
+    <xs:sequence>
+      <xs:element name="item" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:complexType name="BaseSeq">
+    <xs:sequence>
+      <xs:element name="twelve" type="xs:integer" fixed="12"/>
+      <xs:group ref="t:optGroup" minOccurs="0"/>
+      <xs:group ref="t:singleGroup" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="r">
+    <xs:complexType>
+      <xs:complexContent>
+        <xs:extension base="t:BaseSeq">
+          <xs:choice>
+            <xs:element name="c1" type="xs:string"/>
+            <xs:element name="c2" type="xs:string"/>
+          </xs:choice>
+          <xs:anyAttribute namespace='##other' processContents="strict"/>
+        </xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>"#;
+    let schema = parse_schema(xsd).expect("schema parses");
+    let valid = |xml: &str| {
+        let doc = oxml::parse(xml).expect("well-formed");
+        validate(&doc, &schema).is_valid()
+    };
+    assert!(
+        valid(r#"<r topInt="42"><twelve/><item>x</item><c2>y</c2></r>"#),
+        "top-level attribute, empty fixed element, and choice extension are valid"
+    );
+    assert!(
+        !valid(r#"<r topInt="99"><twelve>12</twelve></r>"#),
+        "top-level fixed attribute value is enforced"
+    );
+    assert!(
+        !valid(r#"<r topInt="bad"><twelve>12</twelve></r>"#),
+        "top-level attribute type is enforced"
+    );
+    assert!(
+        !valid(r#"<r xmlns:t="urn:t" t:topInt="42"><twelve>12</twelve></r>"#),
+        "targetNamespace attribute rejected by ##other"
+    );
+    assert!(
+        !valid(r#"<r id1="a" id2="b"><twelve>12</twelve></r>"#),
+        "two xs:ID attributes on one element are rejected"
+    );
+}

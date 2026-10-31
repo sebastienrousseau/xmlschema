@@ -7,7 +7,7 @@ use oxml::{Document, NodeId, NodeKind};
 
 use crate::datatype::WhiteSpace;
 use oxml::XPath;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::{
     BuiltIn, Content, Facets, IdentityKind, NamespaceConstraint, Particle,
@@ -78,7 +78,7 @@ struct Validator<'a> {
     /// which may be declared on a different element and reached later
     /// in the walk -- so tuples are collected as they are found and
     /// the references checked once at the end.
-    identities: BTreeMap<String, Vec<Vec<String>>>,
+    identities: BTreeMap<String, BTreeSet<Vec<String>>>,
     /// Every `keyref` seen, with the tuples it must find.
     references: Vec<(String, String, Vec<Vec<String>>, String)>,
     /// The schema's target namespace, which `##other` is defined
@@ -134,8 +134,8 @@ pub fn validate(doc: &Document, schema: &Schema) -> Report {
     v.report
 }
 
-impl Validator<'_> {
-    fn check_element(&mut self, node: NodeId, decl: &Particle, path: &str) {
+impl<'a> Validator<'a> {
+    fn check_element(&mut self, node: NodeId, decl: &'a Particle, path: &str) {
         self.check_attributes(node, decl, path);
         if !decl.identities.is_empty() {
             self.check_identities(node, decl, path);
@@ -158,18 +158,24 @@ impl Validator<'_> {
             return;
         }
 
-        // A fixed value constrains the element's character content
-        // exactly, whatever else its type permits.
+        // A fixed value supplies the default when the element is empty
+        // and constrains its character content when non-empty.
         if let Some(fixed) = decl.fixed.as_deref() {
             let text = self.doc.text(node);
-            if text.trim() != fixed {
-                self.violate(
-                    path,
-                    format!(
-                        "must be the fixed value `{fixed}`, not `{}`",
-                        text.trim()
-                    ),
-                );
+            if !text.is_empty() {
+                let matches_fixed = match &*decl.content {
+                    Content::Simple(st) => st.base.values_equal(&text, fixed),
+                    _ => text.trim() == fixed,
+                };
+                if !matches_fixed {
+                    self.violate(
+                        path,
+                        format!(
+                            "must be the fixed value `{fixed}`, not `{}`",
+                            text.trim()
+                        ),
+                    );
+                }
             }
         }
 
@@ -187,7 +193,12 @@ impl Validator<'_> {
                 }
             }
             Content::Simple(st) => {
-                let text = self.doc.text(node);
+                let raw = self.doc.text(node);
+                let text = if raw.is_empty() {
+                    decl.fixed.as_deref().unwrap_or(&raw)
+                } else {
+                    &raw
+                };
                 if self
                     .doc
                     .children(node)
@@ -200,7 +211,7 @@ impl Validator<'_> {
                          elements"
                             .to_owned(),
                     );
-                } else if let Err(why) = check_simple(&text, st) {
+                } else if let Err(why) = check_simple(text, st) {
                     self.violate(path, why);
                 }
             }
@@ -226,7 +237,7 @@ impl Validator<'_> {
     fn check_sequence(
         &mut self,
         node: NodeId,
-        particles: &[Particle],
+        particles: &'a [Particle],
         path: &str,
     ) {
         let kids: Vec<NodeId> = self
@@ -296,7 +307,7 @@ impl Validator<'_> {
     fn check_choice(
         &mut self,
         node: NodeId,
-        branches: &[Particle],
+        branches: &'a [Particle],
         path: &str,
     ) {
         let kids: Vec<NodeId> = self
@@ -321,10 +332,9 @@ impl Validator<'_> {
                 .iter()
                 .position(|b| self.particle_matches(child, b, &child_name));
             if let Some(index) = branch {
-                let particle = branches[index].clone();
                 self.check_matched(
                     child,
-                    &particle,
+                    &branches[index],
                     &format!("{path}/{child_name}"),
                 );
             } else {
@@ -350,36 +360,15 @@ impl Validator<'_> {
         }
     }
 
-    fn check_attributes(&mut self, node: NodeId, decl: &Particle, path: &str) {
-        // An `xs:anyAttribute` admits attributes the type does not
-        // declare. Without it, undeclared attributes are simply not
-        // reported by this validator either way -- but with a strict
-        // one they must have a top-level declaration.
-        if let Some(wildcard) = decl.any_attribute.as_ref()
-            && wildcard.process == ProcessContents::Strict
-        {
-            for &attr in self.doc.attribute_nodes(node) {
-                let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
-                    continue;
-                };
-                let Some(name) = self.doc.name(a.name) else {
-                    continue;
-                };
-                let local = name.local.clone();
-                // `xsi:` attributes are defined by the schema
-                // instance namespace, not by this schema.
-                if name.namespace.as_deref() == Some(XSI) {
-                    continue;
-                }
-                if decl.attributes.iter().all(|d| d.name != local) {
-                    self.violate(
-                        &format!("{path}/@{local}"),
-                        "matched a strict wildcard but has no \
-                             declaration"
-                            .to_owned(),
-                    );
-                }
-            }
+    fn check_attributes(
+        &mut self,
+        node: NodeId,
+        decl: &'a Particle,
+        path: &str,
+    ) {
+        let mut id_attrs = 0usize;
+        if let Some(wildcard) = decl.any_attribute.as_ref() {
+            id_attrs += self.check_any_attribute(node, decl, wildcard, path);
         }
 
         for want in &decl.attributes {
@@ -391,6 +380,9 @@ impl Validator<'_> {
                     );
                 }
                 Some(value) => {
+                    if want.simple_type.base == BuiltIn::Id {
+                        id_attrs += 1;
+                    }
                     if let Err(why) = check_simple(value, &want.simple_type) {
                         self.violate(&format!("{path}/@{}", want.name), why);
                     }
@@ -417,6 +409,89 @@ impl Validator<'_> {
                 None => {}
             }
         }
+        if id_attrs > 1 {
+            self.violate(
+                path,
+                "an element may not have more than one xs:ID attribute"
+                    .to_owned(),
+            );
+        }
+    }
+
+    /// Validate undeclared attributes against `xs:anyAttribute`,
+    /// returning the count of matched `xs:ID` attributes.
+    fn check_any_attribute(
+        &mut self,
+        node: NodeId,
+        decl: &'a Particle,
+        wildcard: &crate::model::Wildcard,
+        path: &str,
+    ) -> usize {
+        let mut id_attrs = 0usize;
+        for &attr in self.doc.attribute_nodes(node) {
+            let Some(NodeKind::Attr(a)) = self.doc.kind(attr) else {
+                continue;
+            };
+            let Some(name) = self.doc.name(a.name) else {
+                continue;
+            };
+            let local = name.local.clone();
+            let value = a.value;
+            if name.namespace.as_deref() == Some(XSI) || local == "xmlns" {
+                continue;
+            }
+            if decl.attributes.iter().any(|d| d.name == local) {
+                continue;
+            }
+            let ns_ok = match &wildcard.namespaces {
+                NamespaceConstraint::Any => true,
+                NamespaceConstraint::Other => {
+                    name.namespace.as_deref() != self.target.as_deref()
+                }
+                NamespaceConstraint::List(allowed) => allowed
+                    .iter()
+                    .any(|ns| ns.as_deref() == name.namespace.as_deref()),
+            };
+            if !ns_ok {
+                self.violate(
+                    &format!("{path}/@{local}"),
+                    "attribute namespace is not permitted by \
+                     xs:anyAttribute"
+                        .to_owned(),
+                );
+                continue;
+            }
+            if wildcard.process == ProcessContents::Skip {
+                continue;
+            }
+            if let Some(top_decl) = self.schema.attributes.get(&local) {
+                if top_decl.simple_type.base == BuiltIn::Id {
+                    id_attrs += 1;
+                }
+                if let Err(why) = check_simple(value, &top_decl.simple_type) {
+                    self.violate(&format!("{path}/@{local}"), why);
+                }
+                if let Some(fixed) = top_decl.fixed.as_deref()
+                    && value != fixed
+                {
+                    self.violate(
+                        &format!("{path}/@{local}"),
+                        format!(
+                            "must be the fixed value `{fixed}`, \
+                             not `{value}`"
+                        ),
+                    );
+                }
+            } else if wildcard.process == ProcessContents::Strict {
+                self.violate(
+                    &format!("{path}/@{local}"),
+                    "matched a strict wildcard but has no \
+                         declaration"
+                        .to_owned(),
+                );
+            }
+        }
+        id_attrs
     }
 
     /// `xs:all` — every declared child may appear in any order, and
@@ -425,7 +500,12 @@ impl Validator<'_> {
     /// Not a sequence with the ordering relaxed: validating it as one
     /// rejects a document whose children are simply in a different
     /// order, which is the entire point of the construct.
-    fn check_all(&mut self, node: NodeId, particles: &[Particle], path: &str) {
+    fn check_all(
+        &mut self,
+        node: NodeId,
+        particles: &'a [Particle],
+        path: &str,
+    ) {
         let kids: Vec<NodeId> = self
             .doc
             .children(node)
@@ -454,8 +534,11 @@ impl Validator<'_> {
                         );
                     } else {
                         let child_path = format!("{path}/{name}");
-                        let particle = particles[index].clone();
-                        self.check_matched(child, &particle, &child_path);
+                        self.check_matched(
+                            child,
+                            &particles[index],
+                            &child_path,
+                        );
                     }
                 }
                 None => self
@@ -510,7 +593,7 @@ impl Validator<'_> {
     fn check_matched(
         &mut self,
         child: NodeId,
-        particle: &Particle,
+        particle: &'a Particle,
         path: &str,
     ) {
         let Some(wildcard) = particle.wildcard.as_ref() else {
@@ -527,8 +610,7 @@ impl Validator<'_> {
             .unwrap_or_default();
         match self.schema.elements.get(&name) {
             Some(decl) => {
-                let decl = decl.clone();
-                self.check_element(child, &decl, path);
+                self.check_element(child, decl, path);
             }
             None if wildcard.process == ProcessContents::Strict => {
                 self.violate(
@@ -557,6 +639,14 @@ impl Validator<'_> {
                 // rather than the document being blamed.
                 continue;
             };
+            let Some(fields) = identity
+                .fields
+                .iter()
+                .map(|f| XPath::compile(f).ok())
+                .collect::<Option<Vec<XPath>>>()
+            else {
+                continue;
+            };
             let selected = selector.evaluate_from(self.doc, node);
             let Some(nodes) = selected.nodes() else {
                 continue;
@@ -565,12 +655,8 @@ impl Validator<'_> {
             let mut tuples: Vec<Vec<String>> = Vec::new();
             let mut incomplete = false;
             for &selected_node in nodes {
-                let mut tuple = Vec::with_capacity(identity.fields.len());
-                for field in &identity.fields {
-                    let Ok(expression) = XPath::compile(field) else {
-                        tuple.clear();
-                        break;
-                    };
+                let mut tuple = Vec::with_capacity(fields.len());
+                for expression in &fields {
                     let value =
                         expression.evaluate_from(self.doc, selected_node);
                     // A field selecting nothing means the node has no
@@ -582,7 +668,7 @@ impl Validator<'_> {
                     }
                     tuple.push(value.to_str(self.doc));
                 }
-                if tuple.len() == identity.fields.len() {
+                if tuple.len() == fields.len() {
                     tuples.push(tuple);
                 }
             }
@@ -613,14 +699,13 @@ impl Validator<'_> {
             }
 
             // `unique` and `key` both forbid a repeated tuple.
-            let mut seen: Vec<&Vec<String>> = Vec::new();
+            let mut seen: BTreeSet<&Vec<String>> = BTreeSet::new();
             let mut duplicate = None;
             for tuple in &tuples {
-                if seen.contains(&tuple) {
+                if !seen.insert(tuple) {
                     duplicate = Some(tuple.join(", "));
                     break;
                 }
-                seen.push(tuple);
             }
             if let Some(values) = duplicate {
                 self.violate(
@@ -648,23 +733,24 @@ impl Validator<'_> {
     fn check_references(&mut self) {
         let references = std::mem::take(&mut self.references);
         for (name, refer, tuples, path) in references {
-            let Some(known) = self.identities.get(&refer).cloned() else {
+            let Some(known) = self.identities.get(&refer) else {
                 // A reference to a constraint that does not exist is a
                 // schema defect rather than a document one, and is not
                 // reported against the document.
                 continue;
             };
+            let mut violations = Vec::new();
             for tuple in tuples {
                 if !known.contains(&tuple) {
-                    self.violate(
-                        &path,
-                        format!(
-                            "`{name}` refers to `{refer}`, which has no \
-                             ({}) ",
-                            tuple.join(", ")
-                        ),
-                    );
+                    violations.push(format!(
+                        "`{name}` refers to `{refer}`, which has no \
+                         ({}) ",
+                        tuple.join(", ")
+                    ));
                 }
+            }
+            for msg in violations {
+                self.violate(&path, msg);
             }
         }
     }

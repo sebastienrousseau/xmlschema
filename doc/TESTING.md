@@ -8,7 +8,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo run --example validate
 ```
 
-241 tests over schema parsing, every built-in simple type, every
+247 tests over schema parsing, every built-in simple type, every
 restriction facet, the pattern engine, the validator's content models
 and cardinality, and the derivation relation.
 
@@ -45,8 +45,8 @@ of them, and a harness that counted them would have reported 74.2%
 while measuring almost nothing.
 
 ```
-overall  34226 pass, 1716 fail, 0 panic, 3413 unsupported, 65 blocked
-         95.2% of 35942 decided (91.2% coverage of 39420)
+overall  34564 pass, 1399 fail, 0 panic, 3392 unsupported, 65 blocked
+         96.1% of 35963 decided (91.2% coverage of 39420)
 ```
 
 Coverage is the figure to read first: it is the share of the suite
