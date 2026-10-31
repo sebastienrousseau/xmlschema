@@ -32,6 +32,13 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertNotIn("continue-on-error: true", self.workflow)
         self.assertNotIn("publish with scripts/publish.sh", self.workflow)
 
+    def test_shared_actions_match_ci_workflow_pins(self):
+        ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        ci_pins = dict(re.findall(r"uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([0-9a-f]{40})", ci_workflow))
+        for action, sha in re.findall(r"uses:\s+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([0-9a-f]{40})", self.workflow):
+            if action in ci_pins:
+                self.assertEqual(sha, ci_pins[action], f"{action} pin in release.yml differs from ci.yml")
+
 
 if __name__ == "__main__":
     unittest.main()

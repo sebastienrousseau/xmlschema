@@ -22,7 +22,7 @@ esac
 CARGO_STUB = """#!/bin/sh
 printf '%s\\n' "$*" >> "$TEST_CALLS"
 case "$1" in
-  metadata) echo '{"packages":[{"name":"xmlschema","version":"0.0.12"}]}' ;;
+  metadata) echo '{"packages":[{"name":"xmlschema","version":"0.0.13"}]}' ;;
   publish)
     case " $* " in
       *' --dry-run '*) exit "${TEST_DRY_RUN_EXIT:-0}" ;;

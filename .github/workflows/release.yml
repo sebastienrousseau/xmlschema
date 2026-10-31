@@ -100,19 +100,20 @@ jobs:
       - name: Wait for the crates this one depends on
         if: steps.published.outputs.skip == 'false'
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           for dep in oxml; do
-            echo "waiting for $dep $tag"
+            dep_ver="$(cargo metadata --no-deps --format-version 1 --locked \
+              | jq -r --arg d "$dep" '.packages[] | select(.name=="xmlschema") | .dependencies[] | select(.name==$d) | .req | ltrimstr("=")')"
+            echo "waiting for $dep $dep_ver"
             ok=
             for i in $(seq 1 90); do
-              if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$tag" >/dev/null; then
-                ok=1; echo "  $dep $tag is live"; break
+              if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$dep_ver" >/dev/null; then
+                ok=1; echo "  $dep $dep_ver is live"; break
               fi
               echo "  not indexed yet ($i/90)"
               sleep 20
             done
             if [ -z "$ok" ]; then
-              echo "::error::$dep $tag did not appear after 90 checks"
+              echo "::error::$dep $dep_ver did not appear after 90 checks"
               exit 1
             fi
           done
@@ -162,7 +163,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: 1.98.0
-      - uses: taiki-e/install-action@78cfcd8ba8fdffde5edef8fdad0ccca4fb262f51 # v2.87.30
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-cyclonedx@0.5.9
 

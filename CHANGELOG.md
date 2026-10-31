@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.13] - 2026-10-31
+
+### Fixed
+
+- Align the `taiki-e/install-action` v2.87.30 revision in `release.yml`
+  with `ci.yml` (`a4d3f3f761dcd95cce1b72cb61cb6d1963438177`) so the
+  post-publish `release-page` job resolves the action, enforced by a
+  shared action-pin parity check in `scripts/test-release-workflow.py`.
+- Read prerequisite dependency versions in `release.yml` directly from
+  `Cargo.toml` metadata rather than assuming the tag string.
+
 ## [0.0.12] - 2026-10-31
 
 ### Changed
