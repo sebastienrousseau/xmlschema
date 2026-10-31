@@ -3,7 +3,7 @@ members = ["conformance"]
 
 [package]
 name = "xmlschema"
-version = "0.0.12"
+version = "0.0.13"
 edition = "2024"
 rust-version = "1.89.0"
 license = "MIT OR Apache-2.0"

@@ -100,19 +100,20 @@ jobs:
       - name: Wait for the crates this one depends on
         if: steps.published.outputs.skip == 'false'
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           for dep in oxml; do
-            echo "waiting for $dep $tag"
+            dep_ver="$(cargo metadata --no-deps --format-version 1 --locked \
+              | jq -r --arg d "$dep" '.packages[] | select(.name=="xmlschema") | .dependencies[] | select(.name==$d) | .req | ltrimstr("=")')"
+            echo "waiting for $dep $dep_ver"
             ok=
             for i in $(seq 1 90); do
-              if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$tag" >/dev/null; then
-                ok=1; echo "  $dep $tag is live"; break
+              if curl -sf --connect-timeout 10 --max-time 20 -H "User-Agent: xmlschema release workflow (https://github.com/sebastienrousseau/xmlschema)" "https://crates.io/api/v1/crates/$dep/$dep_ver" >/dev/null; then
+                ok=1; echo "  $dep $dep_ver is live"; break
               fi
               echo "  not indexed yet ($i/90)"
               sleep 20
             done
             if [ -z "$ok" ]; then
-              echo "::error::$dep $tag did not appear after 90 checks"
+              echo "::error::$dep $dep_ver did not appear after 90 checks"
               exit 1
             fi
           done
