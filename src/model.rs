@@ -116,6 +116,38 @@ impl Facets {
     pub fn is_empty(&self) -> bool {
         *self == Self::default()
     }
+
+    /// Inherit any facets not overridden here from a base simple type's
+    /// facets, conjoining patterns across derivation steps.
+    pub(crate) fn inherit_from(&mut self, base: &Self) {
+        if self.enumeration.is_empty() {
+            self.enumeration.clone_from(&base.enumeration);
+        }
+        if let Some(b) = &base.pattern {
+            self.pattern = Some(match self.pattern.take() {
+                Some(d) => b.clone().combine_and(d),
+                None => b.clone(),
+            });
+        }
+        self.min_length = self.min_length.or(base.min_length);
+        self.max_length = self.max_length.or(base.max_length);
+        self.length = self.length.or(base.length);
+        if self.min_inclusive.is_none() {
+            self.min_inclusive.clone_from(&base.min_inclusive);
+        }
+        if self.max_inclusive.is_none() {
+            self.max_inclusive.clone_from(&base.max_inclusive);
+        }
+        if self.min_exclusive.is_none() {
+            self.min_exclusive.clone_from(&base.min_exclusive);
+        }
+        if self.max_exclusive.is_none() {
+            self.max_exclusive.clone_from(&base.max_exclusive);
+        }
+        self.total_digits = self.total_digits.or(base.total_digits);
+        self.fraction_digits = self.fraction_digits.or(base.fraction_digits);
+        self.white_space = self.white_space.or(base.white_space);
+    }
 }
 
 /// A simple type: a built-in, optionally restricted, listed or united.
@@ -300,6 +332,8 @@ pub struct Schema {
     pub target_namespace: Option<String>,
     /// Top-level element declarations, by local name.
     pub elements: BTreeMap<String, Particle>,
+    /// Top-level attribute declarations, by local name.
+    pub attributes: BTreeMap<String, AttributeDecl>,
     /// Named top-level simple types, by local name.
     pub named_simple_types: BTreeMap<String, SimpleType>,
     /// Named top-level complex types, by local name.

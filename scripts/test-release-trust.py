@@ -28,7 +28,7 @@ class ReleaseTrust(unittest.TestCase):
         self.assertNotIn("secrets.CARGO_REGISTRY_TOKEN", self.workflow)
         self.assertIn("id-token: write", self.workflow)
         self.assertIn("contents: read", self.workflow)
-        self.assertIn("uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18", self.workflow)
+        self.assertIn("uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9", self.workflow)
         self.assertIn("CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}", self.workflow)
         auth = self.workflow.index("id: auth")
         self.assertLess(self.workflow.index("run: cargo test --locked"), auth)

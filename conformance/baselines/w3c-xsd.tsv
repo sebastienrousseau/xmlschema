@@ -1,4 +1,4 @@
-#counts	pass=34226	fail=1716	panic=0	unsupported=3413	blocked=65	vacuous=2358	total=39420
+#counts	pass=34564	fail=1399	panic=0	unsupported=3392	blocked=65	vacuous=2360	total=39420
 MS-Regex2006-07-15	AlphabeticPresentationForms/AlphabeticPresentationForms	unsupported	
 MS-Regex2006-07-15	AlphabeticPresentationForms/AlphabeticPresentationForms.v	unsupported	
 MS-Regex2006-07-15	Arabic/Arabic	unsupported	
@@ -382,7 +382,7 @@ MS-Regex2006-07-15	RegexTest_1477/RegexTest_1477	fail
 MS-Regex2006-07-15	RegexTest_1479/RegexTest_1479	unsupported	
 MS-Regex2006-07-15	RegexTest_1480/RegexTest_1480	unsupported	
 MS-Regex2006-07-15	RegexTest_1481/RegexTest_1481	unsupported	
-MS-Regex2006-07-15	RegexTest_1483/RegexTest_1483	fail	
+MS-Regex2006-07-15	RegexTest_1483/RegexTest_1483	unsupported	
 MS-Regex2006-07-15	RegexTest_1491/RegexTest_1491	unsupported	
 MS-Regex2006-07-15	RegexTest_1492/RegexTest_1492	unsupported	
 MS-Regex2006-07-15	RegexTest_1493/RegexTest_1493	unsupported	
@@ -650,7 +650,7 @@ MS-Regex2006-07-15	RegexTest_993/RegexTest_993	fail
 MS-Regex2006-07-15	RegexTest_995/RegexTest_995	unsupported	
 MS-Regex2006-07-15	RegexTest_996/RegexTest_996	unsupported	
 MS-Regex2006-07-15	RegexTest_997/RegexTest_997	unsupported	
-MS-Regex2006-07-15	RegexTest_999/RegexTest_999	fail	
+MS-Regex2006-07-15	RegexTest_999/RegexTest_999	unsupported	
 MS-Regex2006-07-15	Runic/Runic	unsupported	
 MS-Regex2006-07-15	Runic/Runic.v	unsupported	
 MS-Regex2006-07-15	Sinhala/Sinhala	unsupported	
@@ -1397,36 +1397,6 @@ MS-ComplexType2006-07-15	ctA042/ctA042	fail
 MS-ComplexType2006-07-15	ctA043/ctA043	fail	
 MS-ComplexType2006-07-15	ctA044/ctA044	fail	
 MS-ComplexType2006-07-15	ctA046/ctA046	fail	
-MS-ComplexType2006-07-15	ctB043/ctB043.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB044/ctB044	fail	
-MS-ComplexType2006-07-15	ctB057/ctB057.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB058/ctB058	fail	
-MS-ComplexType2006-07-15	ctB071/ctB071.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB072/ctB072	fail	
-MS-ComplexType2006-07-15	ctB085/ctB085.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB086/ctB086	fail	
-MS-ComplexType2006-07-15	ctB091/ctB091	fail	
-MS-ComplexType2006-07-15	ctB092/ctB092	fail	
-MS-ComplexType2006-07-15	ctB093/ctB093	fail	
-MS-ComplexType2006-07-15	ctB094/ctB094	fail	
-MS-ComplexType2006-07-15	ctB098/ctB098.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB099/ctB099	fail	
-MS-ComplexType2006-07-15	ctB104/ctB104	fail	
-MS-ComplexType2006-07-15	ctB105/ctB105	fail	
-MS-ComplexType2006-07-15	ctB106/ctB106	fail	
-MS-ComplexType2006-07-15	ctB107/ctB107	fail	
-MS-ComplexType2006-07-15	ctB111/ctB111.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB112/ctB112	fail	
-MS-ComplexType2006-07-15	ctB113/ctB113.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctB117/ctB117	fail	
-MS-ComplexType2006-07-15	ctB118/ctB118	fail	
-MS-ComplexType2006-07-15	ctB119/ctB119	fail	
-MS-ComplexType2006-07-15	ctB120/ctB120	fail	
-MS-ComplexType2006-07-15	ctB121/ctB121	fail	
-MS-ComplexType2006-07-15	ctB122/ctB122	fail	
-MS-ComplexType2006-07-15	ctB123/ctB123	fail	
-MS-ComplexType2006-07-15	ctB124/ctB124	fail	
-MS-ComplexType2006-07-15	ctB125/ctB125	fail	
 MS-ComplexType2006-07-15	ctC009/ctC009	fail	
 MS-ComplexType2006-07-15	ctD001/ctD001	fail	
 MS-ComplexType2006-07-15	ctD003/ctD003	unsupported	
@@ -1434,24 +1404,19 @@ MS-ComplexType2006-07-15	ctD004/ctD004	fail
 MS-ComplexType2006-07-15	ctD013/ctD013	unsupported	
 MS-ComplexType2006-07-15	ctD014/ctD014	unsupported	
 MS-ComplexType2006-07-15	ctD024/ctD024	unsupported	
-MS-ComplexType2006-07-15	ctD033/ctD033.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctD034/ctD034	fail	
 MS-ComplexType2006-07-15	ctD036/ctD036	fail	
 MS-ComplexType2006-07-15	ctD037/ctD037	fail	
 MS-ComplexType2006-07-15	ctD038/ctD038	fail	
 MS-ComplexType2006-07-15	ctD039/ctD039	fail	
 MS-ComplexType2006-07-15	ctD041/ctD041	fail	
 MS-ComplexType2006-07-15	ctD042/ctD042	fail	
-MS-ComplexType2006-07-15	ctD043/ctD043	fail	
 MS-ComplexType2006-07-15	ctE003/ctE003	fail	
 MS-ComplexType2006-07-15	ctE004/ctE004	fail	
 MS-ComplexType2006-07-15	ctE005/ctE005	fail	
-MS-ComplexType2006-07-15	ctE008/ctE008.v	fail	matched a strict wildcard but has no declaration
 MS-ComplexType2006-07-15	ctE011/ctE011	fail	
 MS-ComplexType2006-07-15	ctE012/ctE012	fail	
 MS-ComplexType2006-07-15	ctE013/ctE013	fail	
 MS-ComplexType2006-07-15	ctE014/ctE014	fail	
-MS-ComplexType2006-07-15	ctE016/ctE016	fail	
 MS-ComplexType2006-07-15	ctE018/ctE018	unsupported	
 MS-ComplexType2006-07-15	ctE018/ctE018.v	unsupported	
 MS-ComplexType2006-07-15	ctE019/ctE019	unsupported	
@@ -1468,77 +1433,19 @@ MS-ComplexType2006-07-15	ctF011/ctF011.v	unsupported
 MS-ComplexType2006-07-15	ctF012/ctF012	fail	
 MS-ComplexType2006-07-15	ctF014/ctF014.v	fail	`myElement3` is not one of the permitted choices (myElement, myElement2)
 MS-ComplexType2006-07-15	ctF015/ctF015	fail	
-MS-ComplexType2006-07-15	ctG011/ctG011.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG012/ctG012	fail	
-MS-ComplexType2006-07-15	ctG023/ctG023.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG024/ctG024	fail	
-MS-ComplexType2006-07-15	ctG035/ctG035.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG036/ctG036	fail	
-MS-ComplexType2006-07-15	ctG047/ctG047.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG048/ctG048	fail	
-MS-ComplexType2006-07-15	ctG051/ctG051	fail	
-MS-ComplexType2006-07-15	ctG052/ctG052	fail	
-MS-ComplexType2006-07-15	ctG053/ctG053	fail	
-MS-ComplexType2006-07-15	ctG054/ctG054	fail	
-MS-ComplexType2006-07-15	ctG058/ctG058.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG059/ctG059	fail	
-MS-ComplexType2006-07-15	ctG062/ctG062	fail	
-MS-ComplexType2006-07-15	ctG063/ctG063	fail	
-MS-ComplexType2006-07-15	ctG064/ctG064	fail	
-MS-ComplexType2006-07-15	ctG065/ctG065	fail	
-MS-ComplexType2006-07-15	ctG069/ctG069.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG070/ctG070	fail	
-MS-ComplexType2006-07-15	ctG071/ctG071.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctG073/ctG073	fail	
-MS-ComplexType2006-07-15	ctG074/ctG074	fail	
-MS-ComplexType2006-07-15	ctG075/ctG075	fail	
-MS-ComplexType2006-07-15	ctG076/ctG076	fail	
-MS-ComplexType2006-07-15	ctG077/ctG077	fail	
-MS-ComplexType2006-07-15	ctG078/ctG078	fail	
-MS-ComplexType2006-07-15	ctG079/ctG079	fail	
-MS-ComplexType2006-07-15	ctG080/ctG080	fail	
-MS-ComplexType2006-07-15	ctG081/ctG081	fail	
-MS-ComplexType2006-07-15	ctH011/ctH011.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH012/ctH012	fail	
+MS-ComplexType2006-07-15	ctH011/ctH011.v	fail	attribute namespace is not permitted by xs:anyAttribute
 MS-ComplexType2006-07-15	ctH013/ctH013	fail	
 MS-ComplexType2006-07-15	ctH019/ctH019	fail	
 MS-ComplexType2006-07-15	ctH020/ctH020	fail	
 MS-ComplexType2006-07-15	ctH021/ctH021	fail	
 MS-ComplexType2006-07-15	ctH022/ctH022	fail	
 MS-ComplexType2006-07-15	ctH023/ctH023	fail	
-MS-ComplexType2006-07-15	ctH024/ctH024	fail	
 MS-ComplexType2006-07-15	ctH025/ctH025.v	fail	`myElement4` is not one of the permitted choices (myElement1, myElement2, myElement3)
 MS-ComplexType2006-07-15	ctH031/ctH031.v	fail	`myElement4` is not one of the permitted choices (myElement1, myElement2, myElement3)
 MS-ComplexType2006-07-15	ctH032/ctH032.v	fail	`myElement4` is not one of the permitted choices (myElement1, myElement2, myElement3)
 MS-ComplexType2006-07-15	ctH033/ctH033.v	fail	`myElement4` is not one of the permitted choices (myElement1, myElement2, myElement3)
 MS-ComplexType2006-07-15	ctH034/ctH034.v	fail	`myElement4` is not one of the permitted choices (myElement1, myElement2, myElement3)
-MS-ComplexType2006-07-15	ctH035/ctH035.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH036/ctH036	fail	
-MS-ComplexType2006-07-15	ctH047/ctH047.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH048/ctH048	fail	
-MS-ComplexType2006-07-15	ctH051/ctH051	fail	
-MS-ComplexType2006-07-15	ctH052/ctH052	fail	
-MS-ComplexType2006-07-15	ctH053/ctH053	fail	
-MS-ComplexType2006-07-15	ctH054/ctH054	fail	
-MS-ComplexType2006-07-15	ctH058/ctH058.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH059/ctH059	fail	
-MS-ComplexType2006-07-15	ctH062/ctH062	fail	
-MS-ComplexType2006-07-15	ctH063/ctH063	fail	
-MS-ComplexType2006-07-15	ctH064/ctH064	fail	
-MS-ComplexType2006-07-15	ctH065/ctH065	fail	
-MS-ComplexType2006-07-15	ctH069/ctH069.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH070/ctH070	fail	
-MS-ComplexType2006-07-15	ctH071/ctH071.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctH073/ctH073	fail	
-MS-ComplexType2006-07-15	ctH074/ctH074	fail	
-MS-ComplexType2006-07-15	ctH075/ctH075	fail	
-MS-ComplexType2006-07-15	ctH076/ctH076	fail	
-MS-ComplexType2006-07-15	ctH077/ctH077	fail	
-MS-ComplexType2006-07-15	ctH078/ctH078	fail	
-MS-ComplexType2006-07-15	ctH079/ctH079	fail	
-MS-ComplexType2006-07-15	ctH080/ctH080	fail	
-MS-ComplexType2006-07-15	ctH081/ctH081	fail	
-MS-ComplexType2006-07-15	ctH082/ctH082.v	fail	matched a strict wildcard but has no declaration
+MS-ComplexType2006-07-15	ctH035/ctH035.v	fail	attribute namespace is not permitted by xs:anyAttribute
 MS-ComplexType2006-07-15	ctI001/ctI001	fail	
 MS-ComplexType2006-07-15	ctI002/ctI002	fail	
 MS-ComplexType2006-07-15	ctI004/ctI004	unsupported	
@@ -1605,7 +1512,6 @@ MS-ComplexType2006-07-15	ctI049/ctI049	unsupported
 MS-ComplexType2006-07-15	ctI049/ctI049.i	unsupported	
 MS-ComplexType2006-07-15	ctI050/ctI050	unsupported	
 MS-ComplexType2006-07-15	ctI050/ctI050.v	unsupported	
-MS-ComplexType2006-07-15	ctJ001/ctJ001.v	fail	unexpected element `myElement4`; this content model allows myElement1, myElement2, myElement3 in that order
 MS-ComplexType2006-07-15	ctJ002/ctJ002	fail	
 MS-ComplexType2006-07-15	ctJ003/ctJ003	fail	
 MS-ComplexType2006-07-15	ctK002/ctK002	unsupported	
@@ -1625,8 +1531,6 @@ MS-ComplexType2006-07-15	ctM004/ctM004	fail
 MS-ComplexType2006-07-15	ctN001/ctN001	unsupported	
 MS-ComplexType2006-07-15	ctN001/ctN001.v	unsupported	
 MS-ComplexType2006-07-15	ctN002/ctN002	unsupported	
-MS-ComplexType2006-07-15	ctN003/ctN003.v	fail	matched a strict wildcard but has no declaration
-MS-ComplexType2006-07-15	ctN004/ctN004.v	fail	matched a strict wildcard but has no declaration
 MS-ComplexType2006-07-15	ctO001/ctO001	unsupported	
 MS-ComplexType2006-07-15	ctO001/ctO001.v	unsupported	
 MS-ComplexType2006-07-15	ctO002/ctO002	unsupported	
@@ -1744,6 +1648,7 @@ MS-DataTypes2006-07-15	double018_1956/double018_1956.i	fail
 MS-DataTypes2006-07-15	double_maxInclusive003_71/double_maxInclusive003_71	fail	
 MS-DataTypes2006-07-15	double_minExclusive003_79/double_minExclusive003_79	fail	
 MS-DataTypes2006-07-15	double_minInclusive003_76/double_minInclusive003_76	fail	
+MS-DataTypes2006-07-15	dtZ107447_a_2245/dtZ107447_a_2245.i	fail	
 MS-DataTypes2006-07-15	duration028_1996/duration028_1996.i	fail	
 MS-DataTypes2006-07-15	duration029_1997/duration029_1997.i	fail	
 MS-DataTypes2006-07-15	duration030_1998/duration030_1998.i	fail	
@@ -1852,7 +1757,6 @@ MS-Element2006-07-15	elemP002/elemP002	unsupported
 MS-Element2006-07-15	elemP007/elemP007	fail	
 MS-Element2006-07-15	elemP008/elemP008	fail	
 MS-Element2006-07-15	elemP009/elemP009	fail	
-MS-Element2006-07-15	elemQ019/elemQ019.v	fail	must be the fixed value `Hello`, not ``
 MS-Element2006-07-15	elemQ020/elemQ020	unsupported	
 MS-Element2006-07-15	elemQ020/elemQ020.v	unsupported	
 MS-Element2006-07-15	elemQ021/elemQ021	unsupported	
@@ -2090,7 +1994,6 @@ MS-Errata102006-07-15	errC006/errC006	unsupported
 MS-Errata102006-07-15	errC007/errC007.v	fail	this element must contain text, not child elements
 MS-Errata102006-07-15	errC008/errC008	fail	
 MS-Errata102006-07-15	errC009/errC009	fail	
-MS-Errata102006-07-15	errF001/errF001.i	fail	
 IdConstrDefs	fields00201m2/Negative	fail	
 IdConstrDefs	fields00202m3/Positive	fail	`UNIQUENESS` requires distinct values, and (3.0) appears more than once
 IdConstrDefs	fields00203m2/Negative	fail	
@@ -2162,19 +2065,14 @@ MS-Group2006-07-15	groupD002/groupD002	unsupported
 MS-Group2006-07-15	groupD003/groupD003	fail	
 MS-Group2006-07-15	groupD004/groupD004	unsupported	
 MS-Group2006-07-15	groupE002/groupE002	fail	
-MS-Group2006-07-15	groupE004v/groupE004v.v	fail	unexpected element `A2`; this content model allows x in that order
-MS-Group2006-07-15	groupF002v/groupF002v.v	fail	unexpected element `A2`; this content model allows x in that order
-MS-Group2006-07-15	groupF005v/groupF005v.v	fail	unexpected element `A1`; this content model allows x in that order
-MS-Group2006-07-15	groupF009v/groupF009v.v	fail	unexpected element `A2`; this content model allows x in that order
+MS-Group2006-07-15	groupF006v/groupF006v.i	fail	
+MS-Group2006-07-15	groupF008v/groupF008v.i	fail	
+MS-Group2006-07-15	groupF009v/groupF009v.v	fail	unexpected element `A1`; this content model allows x, A1, A2 in that order
 MS-Group2006-07-15	groupF010v/groupF010v.i	fail	
-MS-Group2006-07-15	groupF011v/groupF011v.v	fail	unexpected element `A2`; this content model allows x in that order
 MS-Group2006-07-15	groupF013v/groupF013v.i	fail	
-MS-Group2006-07-15	groupF014v/groupF014v.v	fail	unexpected element `A1`; this content model allows x in that order
 MS-Group2006-07-15	groupF016v/groupF016v.i	fail	
-MS-Group2006-07-15	groupF017v/groupF017v.v	fail	unexpected element `A1`; this content model allows x in that order
-MS-Group2006-07-15	groupF018v/groupF018v.v	fail	unexpected element `A1`; this content model allows x in that order
 MS-Group2006-07-15	groupF020/groupF020	fail	
-MS-Group2006-07-15	groupF021v/groupF021v.v	fail	unexpected element `A1`; this content model allows x in that order
+MS-Group2006-07-15	groupF021v/groupF021v.v	fail	unexpected element `A1`; this content model allows x, A1, A2 in that order
 MS-Group2006-07-15	groupF022/groupF022	fail	
 MS-Group2006-07-15	groupF023/groupF023	fail	
 MS-Group2006-07-15	groupF024/groupF024	fail	
@@ -2219,12 +2117,8 @@ MS-Group2006-07-15	groupH023/groupH023	fail
 MS-Group2006-07-15	groupH024/groupH024	fail	
 MS-Group2006-07-15	groupH025/groupH025	fail	
 MS-Group2006-07-15	groupI002/groupI002	fail	
-MS-Group2006-07-15	groupJ001v/groupJ001v.v	fail	expected `b1` exactly once, found 0
-MS-Group2006-07-15	groupJ004v/groupJ004v.v	fail	expected `b1` exactly once, found 0
 MS-Group2006-07-15	groupJ006v/groupJ006v.i	fail	
-MS-Group2006-07-15	groupJ007v/groupJ007v.v	fail	expected `b1` exactly once, found 0
 MS-Group2006-07-15	groupJ008v/groupJ008v.i	fail	
-MS-Group2006-07-15	groupJ009v/groupJ009v.v	fail	expected `b1` exactly once, found 0
 MS-Group2006-07-15	groupJ011v/groupJ011v.v	fail	expected `b1` exactly once, found 0
 MS-Group2006-07-15	groupJ012v/groupJ012v.i	fail	
 MS-Group2006-07-15	groupJ014v/groupJ014v.v	fail	expected `b2` exactly once, found 0
@@ -2243,6 +2137,7 @@ MS-Group2006-07-15	groupL003v/groupL003v.i	fail
 MS-Group2006-07-15	groupL006v/groupL006v.i	fail	
 MS-Group2006-07-15	groupL007/groupL007	unsupported	
 MS-Group2006-07-15	groupL007/groupL007.v	unsupported	
+MS-Group2006-07-15	groupL008v/groupL008v.i	fail	
 MS-Group2006-07-15	groupL010v/groupL010v.i	fail	
 MS-Group2006-07-15	groupL012v/groupL012v.i	fail	
 MS-Group2006-07-15	groupL013v/groupL013v.i	fail	
@@ -2255,13 +2150,10 @@ MS-Group2006-07-15	groupL023/groupL023	fail
 MS-Group2006-07-15	groupL024/groupL024	fail	
 MS-Group2006-07-15	groupL025/groupL025	fail	
 MS-Group2006-07-15	groupM002/groupM002	fail	
-MS-Group2006-07-15	groupN001v/groupN001v.v	fail	expected `a1` exactly once, found 0
 MS-Group2006-07-15	groupN003v/groupN003v.i	fail	
-MS-Group2006-07-15	groupN004v/groupN004v.v	fail	expected `a1` exactly once, found 0
 MS-Group2006-07-15	groupN007v/groupN007v	unsupported	
 MS-Group2006-07-15	groupN007v/groupN007v.v	unsupported	
 MS-Group2006-07-15	groupN008v/groupN008v.i	fail	
-MS-Group2006-07-15	groupN009v/groupN009v.v	fail	expected `a1` exactly once, found 0
 MS-Group2006-07-15	groupN016v/groupN016v.i	fail	
 MS-Group2006-07-15	groupN019v/groupN019v.i	fail	
 MS-Group2006-07-15	groupN020/groupN020	fail	
@@ -2291,150 +2183,11 @@ MS-DataTypes2006-07-15	hexBinary_length007_221/hexBinary_length007_221	fail
 MS-DataTypes2006-07-15	hexBinary_minLength006_227/hexBinary_minLength006_227	fail	
 MS-IdentityConstraint2006-07-15	idA005/idA005	unsupported	
 MS-IdentityConstraint2006-07-15	idA015/idA015	unsupported	
-MS-IdentityConstraint2006-07-15	idA016/idA016	fail	
-MS-IdentityConstraint2006-07-15	idA018/idA018	fail	
-MS-IdentityConstraint2006-07-15	idA019/idA019	fail	
-MS-IdentityConstraint2006-07-15	idA020/idA020	fail	
-MS-IdentityConstraint2006-07-15	idA021/idA021	fail	
-MS-IdentityConstraint2006-07-15	idA023/idA023	fail	
-MS-IdentityConstraint2006-07-15	idA024/idA024	fail	
-MS-IdentityConstraint2006-07-15	idA025/idA025	fail	
-MS-IdentityConstraint2006-07-15	idA026/idA026	fail	
-MS-IdentityConstraint2006-07-15	idA027/idA027	fail	
-MS-IdentityConstraint2006-07-15	idA028/idA028	fail	
-MS-IdentityConstraint2006-07-15	idA030/idA030	fail	
-MS-IdentityConstraint2006-07-15	idA031/idA031	fail	
-MS-IdentityConstraint2006-07-15	idA032/idA032	fail	
-MS-IdentityConstraint2006-07-15	idA035/idA035	fail	
-MS-IdentityConstraint2006-07-15	idA037/idA037	fail	
-MS-IdentityConstraint2006-07-15	idA039/idA039	fail	
-MS-IdentityConstraint2006-07-15	idA044/idA044	fail	
-MS-IdentityConstraint2006-07-15	idA046/idA046	fail	
-MS-IdentityConstraint2006-07-15	idA047/idA047	fail	
-MS-IdentityConstraint2006-07-15	idA048/idA048	fail	
-MS-IdentityConstraint2006-07-15	idA049/idA049	fail	
-MS-IdentityConstraint2006-07-15	idA050/idA050	fail	
-MS-IdentityConstraint2006-07-15	idA051/idA051	fail	
-MS-IdentityConstraint2006-07-15	idA052/idA052	fail	
-MS-IdentityConstraint2006-07-15	idA053/idA053	fail	
-MS-IdentityConstraint2006-07-15	idA054/idA054	fail	
-MS-IdentityConstraint2006-07-15	idA055/idA055	fail	
-MS-IdentityConstraint2006-07-15	idA056/idA056	fail	
-MS-IdentityConstraint2006-07-15	idA057/idA057	fail	
-MS-IdentityConstraint2006-07-15	idA058/idA058	fail	
-MS-IdentityConstraint2006-07-15	idA059/idA059	fail	
-MS-IdentityConstraint2006-07-15	idA060/idA060	fail	
 MS-IdentityConstraint2006-07-15	idB005/idB005	unsupported	
 MS-IdentityConstraint2006-07-15	idB015/idB015	unsupported	
-MS-IdentityConstraint2006-07-15	idB016/idB016	fail	
-MS-IdentityConstraint2006-07-15	idB017/idB017	fail	
-MS-IdentityConstraint2006-07-15	idB019/idB019	fail	
-MS-IdentityConstraint2006-07-15	idB020/idB020	fail	
-MS-IdentityConstraint2006-07-15	idB021/idB021	fail	
-MS-IdentityConstraint2006-07-15	idB023/idB023	fail	
-MS-IdentityConstraint2006-07-15	idB024/idB024	fail	
-MS-IdentityConstraint2006-07-15	idB025/idB025	fail	
-MS-IdentityConstraint2006-07-15	idB026/idB026	fail	
-MS-IdentityConstraint2006-07-15	idB027/idB027	fail	
-MS-IdentityConstraint2006-07-15	idB028/idB028	fail	
-MS-IdentityConstraint2006-07-15	idB030/idB030	fail	
-MS-IdentityConstraint2006-07-15	idB031/idB031	fail	
-MS-IdentityConstraint2006-07-15	idB032/idB032	fail	
-MS-IdentityConstraint2006-07-15	idB035/idB035	fail	
-MS-IdentityConstraint2006-07-15	idB037/idB037	fail	
-MS-IdentityConstraint2006-07-15	idB039/idB039	fail	
-MS-IdentityConstraint2006-07-15	idB044/idB044	fail	
-MS-IdentityConstraint2006-07-15	idB046/idB046	fail	
-MS-IdentityConstraint2006-07-15	idB047/idB047	fail	
-MS-IdentityConstraint2006-07-15	idB048/idB048	fail	
-MS-IdentityConstraint2006-07-15	idB049/idB049	fail	
-MS-IdentityConstraint2006-07-15	idB050/idB050	fail	
-MS-IdentityConstraint2006-07-15	idB051/idB051	fail	
-MS-IdentityConstraint2006-07-15	idB052/idB052	fail	
-MS-IdentityConstraint2006-07-15	idB053/idB053	fail	
-MS-IdentityConstraint2006-07-15	idB054/idB054	fail	
-MS-IdentityConstraint2006-07-15	idB056/idB056	fail	
-MS-IdentityConstraint2006-07-15	idB057/idB057	fail	
-MS-IdentityConstraint2006-07-15	idB058/idB058	fail	
-MS-IdentityConstraint2006-07-15	idB059/idB059	fail	
-MS-IdentityConstraint2006-07-15	idB060/idB060	fail	
 MS-IdentityConstraint2006-07-15	idC005/idC005	unsupported	
 MS-IdentityConstraint2006-07-15	idC015/idC015	unsupported	
-MS-IdentityConstraint2006-07-15	idC016/idC016	fail	
-MS-IdentityConstraint2006-07-15	idC017/idC017	fail	
-MS-IdentityConstraint2006-07-15	idC018/idC018	fail	
-MS-IdentityConstraint2006-07-15	idC020/idC020	fail	
-MS-IdentityConstraint2006-07-15	idC021/idC021	fail	
-MS-IdentityConstraint2006-07-15	idC023/idC023	fail	
-MS-IdentityConstraint2006-07-15	idC024/idC024	fail	
-MS-IdentityConstraint2006-07-15	idC025/idC025	fail	
-MS-IdentityConstraint2006-07-15	idC026/idC026	fail	
-MS-IdentityConstraint2006-07-15	idC027/idC027	fail	
-MS-IdentityConstraint2006-07-15	idC028/idC028	fail	
-MS-IdentityConstraint2006-07-15	idC030/idC030	fail	
-MS-IdentityConstraint2006-07-15	idC031/idC031	fail	
-MS-IdentityConstraint2006-07-15	idC032/idC032	fail	
 MS-IdentityConstraint2006-07-15	idC038/idC038	fail	
-MS-IdentityConstraint2006-07-15	idC040/idC040	fail	
-MS-IdentityConstraint2006-07-15	idC042/idC042	fail	
-MS-IdentityConstraint2006-07-15	idC047/idC047	fail	
-MS-IdentityConstraint2006-07-15	idC049/idC049	fail	
-MS-IdentityConstraint2006-07-15	idC050/idC050	fail	
-MS-IdentityConstraint2006-07-15	idC051/idC051	fail	
-MS-IdentityConstraint2006-07-15	idC052/idC052	fail	
-MS-IdentityConstraint2006-07-15	idC053/idC053	fail	
-MS-IdentityConstraint2006-07-15	idC054/idC054	fail	
-MS-IdentityConstraint2006-07-15	idC055/idC055	fail	
-MS-IdentityConstraint2006-07-15	idC056/idC056	fail	
-MS-IdentityConstraint2006-07-15	idC057/idC057	fail	
-MS-IdentityConstraint2006-07-15	idC058/idC058	fail	
-MS-IdentityConstraint2006-07-15	idC059/idC059	fail	
-MS-IdentityConstraint2006-07-15	idC060/idC060	fail	
-MS-IdentityConstraint2006-07-15	idC061/idC061	fail	
-MS-IdentityConstraint2006-07-15	idC062/idC062	fail	
-MS-IdentityConstraint2006-07-15	idC063/idC063	fail	
-MS-IdentityConstraint2006-07-15	idD006/idD006	fail	
-MS-IdentityConstraint2006-07-15	idD007/idD007	fail	
-MS-IdentityConstraint2006-07-15	idD011/idD011	fail	
-MS-IdentityConstraint2006-07-15	idD012/idD012	fail	
-MS-IdentityConstraint2006-07-15	idD014/idD014	fail	
-MS-IdentityConstraint2006-07-15	idD018/idD018	fail	
-MS-IdentityConstraint2006-07-15	idD019/idD019	fail	
-MS-IdentityConstraint2006-07-15	idD020/idD020	fail	
-MS-IdentityConstraint2006-07-15	idD021/idD021	fail	
-MS-IdentityConstraint2006-07-15	idD022/idD022	fail	
-MS-IdentityConstraint2006-07-15	idD023/idD023	unsupported	
-MS-IdentityConstraint2006-07-15	idD024/idD024	fail	
-MS-IdentityConstraint2006-07-15	idD025/idD025	fail	
-MS-IdentityConstraint2006-07-15	idD026/idD026	fail	
-MS-IdentityConstraint2006-07-15	idD027/idD027	fail	
-MS-IdentityConstraint2006-07-15	idD028/idD028	fail	
-MS-IdentityConstraint2006-07-15	idD029/idD029	fail	
-MS-IdentityConstraint2006-07-15	idD030/idD030	fail	
-MS-IdentityConstraint2006-07-15	idD031/idD031	fail	
-MS-IdentityConstraint2006-07-15	idD032/idD032	fail	
-MS-IdentityConstraint2006-07-15	idD033/idD033	fail	
-MS-IdentityConstraint2006-07-15	idE006/idE006	fail	
-MS-IdentityConstraint2006-07-15	idE007/idE007	fail	
-MS-IdentityConstraint2006-07-15	idE011/idE011	fail	
-MS-IdentityConstraint2006-07-15	idE012/idE012	fail	
-MS-IdentityConstraint2006-07-15	idE014/idE014	fail	
-MS-IdentityConstraint2006-07-15	idE018/idE018	fail	
-MS-IdentityConstraint2006-07-15	idE019/idE019	fail	
-MS-IdentityConstraint2006-07-15	idE020/idE020	fail	
-MS-IdentityConstraint2006-07-15	idE021/idE021	fail	
-MS-IdentityConstraint2006-07-15	idE022/idE022	fail	
-MS-IdentityConstraint2006-07-15	idE023/idE023	fail	
-MS-IdentityConstraint2006-07-15	idE024/idE024	fail	
-MS-IdentityConstraint2006-07-15	idE025/idE025	fail	
-MS-IdentityConstraint2006-07-15	idE026/idE026	fail	
-MS-IdentityConstraint2006-07-15	idE027/idE027	fail	
-MS-IdentityConstraint2006-07-15	idE028/idE028	fail	
-MS-IdentityConstraint2006-07-15	idE029/idE029	fail	
-MS-IdentityConstraint2006-07-15	idE030/idE030	fail	
-MS-IdentityConstraint2006-07-15	idE031/idE031	fail	
-MS-IdentityConstraint2006-07-15	idE032/idE032	fail	
-MS-IdentityConstraint2006-07-15	idE033/idE033	fail	
 MS-IdentityConstraint2006-07-15	idF005/idF005.i	fail	
 MS-IdentityConstraint2006-07-15	idF010/idF010.i	fail	
 MS-IdentityConstraint2006-07-15	idF012/idF012.v	fail	`uuid` requires distinct values, and (1) appears more than once
@@ -2494,53 +2247,23 @@ MS-IdentityConstraint2006-07-15	idH032/idH032.v	unsupported
 MS-IdentityConstraint2006-07-15	idH034/idH034	unsupported	
 MS-IdentityConstraint2006-07-15	idH034/idH034.v	unsupported	
 MS-IdentityConstraint2006-07-15	idH035/idH035	unsupported	
-MS-IdentityConstraint2006-07-15	idI001/idI001	fail	
-MS-IdentityConstraint2006-07-15	idI003/idI003	fail	
-MS-IdentityConstraint2006-07-15	idI004/idI004	fail	
-MS-IdentityConstraint2006-07-15	idI005/idI005	fail	
 MS-IdentityConstraint2006-07-15	idI006/idI006	fail	
-MS-IdentityConstraint2006-07-15	idI007/idI007	fail	
 MS-IdentityConstraint2006-07-15	idI010/idI010	fail	
 MS-IdentityConstraint2006-07-15	idI014/idI014	fail	
 MS-IdentityConstraint2006-07-15	idI015/idI015	fail	
 MS-IdentityConstraint2006-07-15	idI016/idI016	fail	
-MS-IdentityConstraint2006-07-15	idI018/idI018	fail	
-MS-IdentityConstraint2006-07-15	idI022/idI022	fail	
+MS-IdentityConstraint2006-07-15	idI021/idI021	fail	invalid step `` in identity constraint xpath
 MS-IdentityConstraint2006-07-15	idI023/idI023	fail	
-MS-IdentityConstraint2006-07-15	idI028/idI028	fail	
-MS-IdentityConstraint2006-07-15	idI038/idI038	fail	
-MS-IdentityConstraint2006-07-15	idI145/idI145	fail	
-MS-IdentityConstraint2006-07-15	idI146/idI146	fail	
-MS-IdentityConstraint2006-07-15	idI147/idI147	fail	
-MS-IdentityConstraint2006-07-15	idI148/idI148	fail	
-MS-IdentityConstraint2006-07-15	idI149/idI149	fail	
-MS-IdentityConstraint2006-07-15	idI150/idI150	fail	
-MS-IdentityConstraint2006-07-15	idI151/idI151	fail	
-MS-IdentityConstraint2006-07-15	idI152/idI152	fail	
-MS-IdentityConstraint2006-07-15	idJ001/idJ001	fail	
+MS-IdentityConstraint2006-07-15	idI024/idI024	fail	axis `child ::` is not permitted in an identity constraint xpath
 MS-IdentityConstraint2006-07-15	idJ002/idJ002	fail	
 MS-IdentityConstraint2006-07-15	idJ003/idJ003	fail	
-MS-IdentityConstraint2006-07-15	idJ005/idJ005	fail	
-MS-IdentityConstraint2006-07-15	idJ006/idJ006	fail	
-MS-IdentityConstraint2006-07-15	idJ007/idJ007	fail	
-MS-IdentityConstraint2006-07-15	idJ008/idJ008	fail	
 MS-IdentityConstraint2006-07-15	idJ011/idJ011	fail	
 MS-IdentityConstraint2006-07-15	idJ015/idJ015	fail	
 MS-IdentityConstraint2006-07-15	idJ016/idJ016	fail	
 MS-IdentityConstraint2006-07-15	idJ017/idJ017	fail	
-MS-IdentityConstraint2006-07-15	idJ025/idJ025	fail	
-MS-IdentityConstraint2006-07-15	idJ026/idJ026	fail	
-MS-IdentityConstraint2006-07-15	idJ030/idJ030	fail	
+MS-IdentityConstraint2006-07-15	idJ029/idJ029	fail	invalid step `` in identity constraint xpath
 MS-IdentityConstraint2006-07-15	idJ032/idJ032	fail	
-MS-IdentityConstraint2006-07-15	idJ036/idJ036	fail	
-MS-IdentityConstraint2006-07-15	idJ052/idJ052	fail	
-MS-IdentityConstraint2006-07-15	idJ056/idJ056	fail	
-MS-IdentityConstraint2006-07-15	idJ205/idJ205	fail	
-MS-IdentityConstraint2006-07-15	idJ206/idJ206	fail	
-MS-IdentityConstraint2006-07-15	idJ207/idJ207	fail	
-MS-IdentityConstraint2006-07-15	idJ208/idJ208	fail	
-MS-IdentityConstraint2006-07-15	idJ209/idJ209	fail	
-MS-IdentityConstraint2006-07-15	idJ210/idJ210	fail	
+MS-IdentityConstraint2006-07-15	idJ033/idJ033	fail	axis `attribute ::` is not permitted in an identity constraint xpath
 MS-IdentityConstraint2006-07-15	idK012/idK012.i	fail	
 MS-IdentityConstraint2006-07-15	idL006/idL006.i	fail	
 MS-IdentityConstraint2006-07-15	idL007/idL007.i	fail	
@@ -2572,6 +2295,7 @@ MS-IdentityConstraint2006-07-15	idL079/idL079.i	fail
 MS-IdentityConstraint2006-07-15	idL080/idL080.i	fail	
 MS-IdentityConstraint2006-07-15	idL081/idL081.i	fail	
 MS-IdentityConstraint2006-07-15	idL085/idL085.i	fail	
+MS-IdentityConstraint2006-07-15	idL087/idL087.i	fail	
 MS-IdentityConstraint2006-07-15	idL089/idL089.i	fail	
 MS-IdentityConstraint2006-07-15	idL090/idL090	unsupported	
 MS-IdentityConstraint2006-07-15	idL090/idL090.v	unsupported	
@@ -2709,10 +2433,6 @@ BoeingXSDTestCases	ipo5/ipo_2	unsupported
 BoeingXSDTestCases	ipo6/ipo6	unsupported	
 BoeingXSDTestCases	ipo6/ipo_1	unsupported	
 BoeingXSDTestCases	ipo6/ipo_2	unsupported	
-MS-Additional2006-07-15	isDefault001/isDefault001.v	fail	must be the fixed value `abc`, not ``
-MS-Additional2006-07-15	isDefault002/isDefault002.v	fail	must be the fixed value `abc`, not ``
-MS-Additional2006-07-15	isDefault005/isDefault005.v	fail	must be the fixed value `abc`, not ``
-MS-Additional2006-07-15	isDefault006/isDefault006.v	fail	must be the fixed value `abc`, not ``
 MS-Additional2006-07-15	isDefault021/isDefault021	unsupported	
 MS-Additional2006-07-15	isDefault021/isDefault021.v	unsupported	
 MS-Additional2006-07-15	isDefault022/isDefault022	unsupported	
@@ -2933,7 +2653,6 @@ MGroupDef	modelgroup00102m6/modelGroup00102m6	fail
 CType	name00101m/name00101m1_n	fail	
 Notation	name00101m1/Positive	unsupported	
 Notation	name00101m1/name00101m1	unsupported	
-IdConstrDefs	name00101m2/name00101m2	fail	
 MGroupDef	name00101m2/name00101m2	fail	
 Notation	name00101m2/name00101m2	unsupported	
 Notation	name00201m1/name00201m1	unsupported	
@@ -3042,17 +2761,12 @@ MS-Notations2006-07-15	notatF025/notatF025	unsupported
 MS-Notations2006-07-15	notatF026/notatF026	unsupported	
 MS-Notations2006-07-15	notatF027/notatF027	unsupported	
 MS-Notations2006-07-15	notatF028/notatF028	unsupported	
-MS-Notations2006-07-15	notatF029/notatF029	unsupported	
-MS-Notations2006-07-15	notatF030/notatF030	unsupported	
 MS-Notations2006-07-15	notatF031/notatF031	unsupported	
 MS-Notations2006-07-15	notatF032/notatF032	unsupported	
 MS-Notations2006-07-15	notatF033/notatF033	unsupported	
 MS-Notations2006-07-15	notatF034/notatF034	unsupported	
 MS-Notations2006-07-15	notatF035/notatF035	unsupported	
 MS-Notations2006-07-15	notatF036/notatF036	unsupported	
-MS-Notations2006-07-15	notatF037/notatF037	unsupported	
-MS-Notations2006-07-15	notatF038/notatF038	unsupported	
-MS-Notations2006-07-15	notatF039/notatF039	unsupported	
 MS-Notations2006-07-15	notatF040/notatF040	unsupported	
 MS-Notations2006-07-15	notatF041/notatF041	unsupported	
 MS-Notations2006-07-15	notatF042/notatF042	unsupported	
@@ -3074,16 +2788,12 @@ MS-Notations2006-07-15	notatF057/notatF057	unsupported
 MS-Notations2006-07-15	notatF058/notatF058	unsupported	
 MS-Notations2006-07-15	notatF059/notatF059	unsupported	
 MS-Notations2006-07-15	notatF060/notatF060	unsupported	
-MS-Notations2006-07-15	notatF061/notatF061	unsupported	
-MS-Notations2006-07-15	notatF062/notatF062	unsupported	
 MS-Notations2006-07-15	notatF063/notatF063	unsupported	
 MS-Notations2006-07-15	notatF064/notatF064	unsupported	
 MS-Notations2006-07-15	notatF065/notatF065	unsupported	
 MS-Notations2006-07-15	notatF066/notatF066	unsupported	
 MS-Notations2006-07-15	notatF069/notatF069	unsupported	
 MS-Notations2006-07-15	notatF070/notatF070	unsupported	
-MS-Notations2006-07-15	notatF071/notatF071	unsupported	
-MS-Notations2006-07-15	notatF072/notatF072	unsupported	
 MS-Notations2006-07-15	notatG001/notatG001	unsupported	
 MS-Notations2006-07-15	notatG002/notatG002	unsupported	
 MS-Notations2006-07-15	notatG003/notatG003	unsupported	
@@ -3091,13 +2801,7 @@ MS-Notations2006-07-15	notatG005/notatG005	unsupported
 MS-Notations2006-07-15	notatG006/notatG006	unsupported	
 MS-Notations2006-07-15	notatH001v/notatH001v	unsupported	
 MS-Notations2006-07-15	notatH001v/notatH001v.v	unsupported	
-Wildcard	nsconstraint00202m1/Negative	fail	
-Wildcard	nsconstraint00302m1/Negative	fail	
 MS-Regex2006-07-15	p1/p1	unsupported	
-MS-Regex2006-07-15	p16/p16.v	fail	`112233123` does not match the pattern `[abc]+`
-MS-Regex2006-07-15	p21/p21.i	fail	
-MS-Regex2006-07-15	p4/p4.i	fail	
-MS-Regex2006-07-15	p7/p7.i	fail	
 MGroup	particles00102m1/particles00102m1	fail	
 MGroup	particles00103m1/particles00103m1	fail	
 MGroup	particles00104m1/particles00104m1	fail	
@@ -3186,7 +2890,7 @@ MS-Particles2006-07-15	particlesDc009/particlesDc009.i	unsupported
 MS-Particles2006-07-15	particlesEa023/particlesEa023	fail	
 MS-Particles2006-07-15	particlesEa024/particlesEa024	fail	
 MS-Particles2006-07-15	particlesEa025/particlesEa025	fail	
-MS-Particles2006-07-15	particlesEb001/particlesEb001.v	fail	expected `a1` exactly once, found 0
+MS-Particles2006-07-15	particlesEb002/particlesEb002.i	fail	
 MS-Particles2006-07-15	particlesEb015/particlesEb015	fail	
 MS-Particles2006-07-15	particlesEb027/particlesEb027.v	fail	unexpected element `a1`; this content model allows a1, a2 in that order
 MS-Particles2006-07-15	particlesEb033/particlesEb033.i	fail	
@@ -3515,8 +3219,6 @@ MS-DataTypes2006-07-15	positiveInteger_maxInclusive004_993/positiveInteger_maxIn
 MS-DataTypes2006-07-15	positiveInteger_minExclusive004_1004/positiveInteger_minExclusive004_1004	fail	
 MS-DataTypes2006-07-15	positiveInteger_minInclusive004_1000/positiveInteger_minInclusive004_1000	fail	
 MS-DataTypes2006-07-15	positiveInteger_totalDigits003_1007/positiveInteger_totalDigits003_1007	fail	
-Wildcard	pscontents00102m1/Positive	fail	matched a strict wildcard but has no declaration
-Wildcard	pscontents00302m1/Negative	fail	
 CType	psubstitutions00101m/pSubstitutions00101m1_n	fail	
 CType	psubstitutions00101m/pSubstitutions00101m1_p	fail	unexpected element `d`; this content model allows c in that order
 CType	psubstitutions00101m/pSubstitutions00101m2_n	fail	
@@ -3542,8 +3244,8 @@ MS-Regex2006-07-15	reB62/reB62	unsupported
 MS-Regex2006-07-15	reB63/reB63	unsupported	
 MS-Regex2006-07-15	reB64/reB64	unsupported	
 MS-Regex2006-07-15	reB65/reB65	fail	
-MS-Regex2006-07-15	reB79/reB79	fail	
-MS-Regex2006-07-15	reB80/reB80	fail	
+MS-Regex2006-07-15	reB79/reB79	unsupported	
+MS-Regex2006-07-15	reB80/reB80	unsupported	
 MS-Regex2006-07-15	reC65/reC65	unsupported	
 MS-Regex2006-07-15	reC65/reC65.i	unsupported	
 MS-Regex2006-07-15	reC66/reC66	unsupported	
@@ -3552,7 +3254,7 @@ MS-Regex2006-07-15	reC67/reC67	unsupported
 MS-Regex2006-07-15	reC67/reC67.i	unsupported	
 MS-Regex2006-07-15	reC68/reC68	unsupported	
 MS-Regex2006-07-15	reC68/reC68.i	unsupported	
-MS-Regex2006-07-15	reC69/reC69	fail	
+MS-Regex2006-07-15	reC69/reC69	unsupported	
 MS-Regex2006-07-15	reD10/reD10	unsupported	
 MS-Regex2006-07-15	reD11/reD11	unsupported	
 MS-Regex2006-07-15	reD12/reD12	unsupported	
@@ -3654,15 +3356,6 @@ MS-Regex2006-07-15	reJ51/reJ51	unsupported
 MS-Regex2006-07-15	reJ51/reJ51.v	unsupported	
 MS-Regex2006-07-15	reJ52/reJ52	unsupported	
 MS-Regex2006-07-15	reJ52/reJ52.i	unsupported	
-MS-Regex2006-07-15	reJ56/reJ56.i	fail	
-MS-Regex2006-07-15	reJ57/reJ57	unsupported	
-MS-Regex2006-07-15	reJ57/reJ57.v	unsupported	
-MS-Regex2006-07-15	reJ58/reJ58	unsupported	
-MS-Regex2006-07-15	reJ58/reJ58.i	unsupported	
-MS-Regex2006-07-15	reJ59/reJ59	unsupported	
-MS-Regex2006-07-15	reJ59/reJ59.v	unsupported	
-MS-Regex2006-07-15	reJ60/reJ60	unsupported	
-MS-Regex2006-07-15	reJ60/reJ60.i	unsupported	
 MS-Regex2006-07-15	reJ61/reJ61	unsupported	
 MS-Regex2006-07-15	reJ61/reJ61.i	unsupported	
 MS-Regex2006-07-15	reJ62/reJ62	unsupported	
@@ -3761,15 +3454,6 @@ MS-Regex2006-07-15	reK51/reK51	unsupported
 MS-Regex2006-07-15	reK51/reK51.i	unsupported	
 MS-Regex2006-07-15	reK52/reK52	unsupported	
 MS-Regex2006-07-15	reK52/reK52.v	unsupported	
-MS-Regex2006-07-15	reK56/reK56.v	fail	` ` does not match the pattern `\P{Zs}*`
-MS-Regex2006-07-15	reK57/reK57	unsupported	
-MS-Regex2006-07-15	reK57/reK57.i	unsupported	
-MS-Regex2006-07-15	reK58/reK58	unsupported	
-MS-Regex2006-07-15	reK58/reK58.v	unsupported	
-MS-Regex2006-07-15	reK59/reK59	unsupported	
-MS-Regex2006-07-15	reK59/reK59.i	unsupported	
-MS-Regex2006-07-15	reK60/reK60	unsupported	
-MS-Regex2006-07-15	reK60/reK60.v	unsupported	
 MS-Regex2006-07-15	reK61/reK61	unsupported	
 MS-Regex2006-07-15	reK61/reK61.i	unsupported	
 MS-Regex2006-07-15	reK62/reK62	unsupported	
@@ -4605,9 +4289,7 @@ MS-SimpleType2006-07-15	stZ033/stZ033	unsupported
 MS-SimpleType2006-07-15	stZ033/stZ033.i	unsupported	
 MS-SimpleType2006-07-15	stZ034/stZ034	unsupported	
 MS-SimpleType2006-07-15	stZ034/stZ034.i	unsupported	
-MS-SimpleType2006-07-15	stZ037/stZ037.i	fail	
 MS-SimpleType2006-07-15	stZ038/stZ038	fail	
-MS-SimpleType2006-07-15	stZ039/stZ039.i	fail	
 MS-SimpleType2006-07-15	stZ041/stZ041	unsupported	
 MS-SimpleType2006-07-15	stZ043/stZ043	unsupported	
 MS-SimpleType2006-07-15	stZ043/stZ043.v	unsupported	
@@ -4831,18 +4513,14 @@ suntest	test006/test.9.n	unsupported
 suntest	test007/test.2.n	fail	
 suntest	test007/test.3.n	fail	
 suntest	test007/test.4.n	fail	
-suntest	test007/test.5.n	fail	
 suntest	test007/test.7.n	fail	
 suntest	test007/test.8.n	fail	
-suntest	test008/test.1.n	fail	
 suntest	test008/test.10.n	fail	
 suntest	test008/test.11.n	fail	
 suntest	test008/test.12.n	fail	
-suntest	test008/test.5.n	fail	
-suntest	test008/test.7.n	fail	
-suntest	test008/test.8.n	fail	
+suntest	test008/test.2.v	fail	attribute namespace is not permitted by xs:anyAttribute
+suntest	test008/test.3.v	fail	attribute namespace is not permitted by xs:anyAttribute
 suntest	test008/test.9.n	fail	
-MS-Additional2006-07-15	test93160/test93160.i	fail	
 MS-DataTypes2006-07-15	time_maxExclusive003_1157/time_maxExclusive003_1157.v	fail	13:20:00-03:00 must be less than 13:20:00-04:00
 MS-DataTypes2006-07-15	time_maxInclusive003_118/time_maxInclusive003_118	fail	
 MS-DataTypes2006-07-15	time_maxInclusive007_119/time_maxInclusive007_119	fail	
@@ -4915,10 +4593,8 @@ MS-DataTypes2006-07-15	unsignedShort_totalDigits003_939/unsignedShort_totalDigit
 ElemDecl	valueconstraint00101m1/Positive	unsupported	
 ElemDecl	valueconstraint00101m1/valueConstraint00101m1	unsupported	
 ElemDecl	valueconstraint00101m2/valueConstraint00101m2	unsupported	
-ElemDecl	valueconstraint00201m/valueConstraint00201m1_p	fail	must be the fixed value `12`, not ``
 ElemDecl	valueconstraint00301m1/Positive	unsupported	
 ElemDecl	valueconstraint00301m1/valueConstraint00301m1	unsupported	
-ElemDecl	valueconstraint00301m2/Positive	fail	must be the fixed value `0`, not ``
 ElemDecl	valueconstraint00301m3/valueConstraint00301m3	unsupported	
 ElemDecl	valueconstraint00301m4/valueConstraint00301m4	unsupported	
 ElemDecl	valueconstraint00301m5/valueConstraint00301m5	unsupported	
@@ -4940,20 +4616,17 @@ ElemDecl	valueconstraint00401m9/valueConstraint00401m9	unsupported
 ElemDecl	valueconstraint00402m2/valueConstraint00402m2	fail	
 ElemDecl	valueconstraint00402m6/valueConstraint00402m6	fail	
 ElemDecl	valueconstraint00402m8/valueConstraint00402m8	fail	
-ElemDecl	valueconstraint00501m1/Positive	fail	must be the fixed value `1.0E-2`, not ``
-ElemDecl	valueconstraint00501m2/Positive	fail	must be the fixed value `1.0e-2`, not ``
+ElemDecl	valueconstraint00501m3/Negative	fail	
 ElemDecl	valueconstraint00501m4/Positive	unsupported	
 ElemDecl	valueconstraint00501m4/valueConstraint00501m4	unsupported	
 ElemDecl	valueconstraint00501m5/Positive	unsupported	
 ElemDecl	valueconstraint00501m5/valueConstraint00501m5	unsupported	
 ElemDecl	valueconstraint00501m6/Negative	unsupported	
 ElemDecl	valueconstraint00501m6/valueConstraint00501m6	unsupported	
-ElemDecl	valueconstraint00601m1/Positive	fail	must be the fixed value `1.0e-2`, not ``
 ElemDecl	valueconstraint00601m2/valueConstraint00601m2	fail	
 ElemDecl	valueconstraint00601m3/Positive	unsupported	
 ElemDecl	valueconstraint00601m3/valueConstraint00601m3	unsupported	
 ElemDecl	valueconstraint00601m4/valueConstraint00601m4	unsupported	
-ElemDecl	valueconstraint00601m5/Positive	fail	must be the fixed value `1.0E-2`, not ``
 ElemDecl	valueconstraint00601m6/valueConstraint00601m6	fail	
 ElemDecl	valueconstraint00601m7/Positive	unsupported	
 ElemDecl	valueconstraint00601m7/valueConstraint00601m7	unsupported	
@@ -4970,7 +4643,7 @@ ElemDecl	valueconstraint01001m5/valueConstraint01001m5	fail
 ElemDecl	valueconstraint01001m6/valueConstraint01001m6	unsupported	
 ElemDecl	valueconstraint01001m8/Positive	unsupported	
 ElemDecl	valueconstraint01001m8/valueConstraint01001m8	unsupported	
-ElemDecl	valueconstraint01101m1/Positive	fail	must be the fixed value `0`, not ``
+ElemDecl	valueconstraint01101m2/Negative	fail	
 ElemDecl	valueconstraint01101m3/Positive	unsupported	
 ElemDecl	valueconstraint01101m3/valueConstraint01101m3	unsupported	
 ElemDecl	valueconstraint01101m4/Negative	unsupported	
@@ -5067,30 +4740,19 @@ MS-Wildcards2006-07-15	wildN014/wildN014	fail
 MS-Wildcards2006-07-15	wildN015/wildN015	fail	
 MS-Wildcards2006-07-15	wildN016/wildN016	fail	
 MS-Wildcards2006-07-15	wildN018/wildN018	fail	
-MS-Wildcards2006-07-15	wildO001/wildO001.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO002/wildO002.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO003/wildO003.i	fail	
 MS-Wildcards2006-07-15	wildO004/wildO004.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO007/wildO007.v	fail	matched a strict wildcard but has no declaration
+MS-Wildcards2006-07-15	wildO006/wildO006.i	fail	
 MS-Wildcards2006-07-15	wildO010/wildO010.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO012/wildO012.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO013/wildO013.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO015/wildO015.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO016/wildO016.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO018/wildO018.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO019/wildO019.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO021/wildO021.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO023/wildO023.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO026/wildO026.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO027/wildO027.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO029/wildO029.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO031/wildO031.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO033/wildO033.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO037/wildO037.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildO038/wildO038.v	fail	matched a strict wildcard but has no declaration
 MS-Wildcards2006-07-15	wildO040/wildO040.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildP001/wildP001.v	fail	matched a strict wildcard but has no declaration
-MS-Wildcards2006-07-15	wildQ001/wildQ001	fail	
 MS-Wildcards2006-07-15	wildQ002/wildQ002	fail	
 MS-Wildcards2006-07-15	wildQ003/wildQ003	fail	
 MS-Wildcards2006-07-15	wildQ004/wildQ004	fail	

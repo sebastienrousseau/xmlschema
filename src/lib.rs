@@ -73,23 +73,33 @@
 //!
 //! ## Supported
 //!
-//! - Elements, `xs:sequence`, `xs:choice`, cardinality via
-//!   `minOccurs` / `maxOccurs` including `unbounded`
-//! - Attributes, with `use="required"`
-//! - Built-in simple types: string, boolean, decimal, integer,
-//!   non-negative integer, double, date, dateTime, anyURI
-//! - Restriction facets: `enumeration`, `pattern`, `length`,
+//! - Elements, `xs:sequence`, `xs:choice`, `xs:all`, cardinality via
+//!   `minOccurs` / `maxOccurs` including `unbounded`, `nillable`, `fixed`
+//! - Reusable `xs:group` and `xs:attributeGroup` definitions (`ref`)
+//! - Attributes, with `use="required"`, `use="prohibited"`, and `fixed`
+//! - Wildcards: `xs:any` and `xs:anyAttribute` with `namespace` and
+//!   `processContents` (`strict`, `lax`, `skip`)
+//! - All 44 XSD 1.0 built-in simple types (strings, numbers, dates,
+//!   durations, binary, names, URIs, `QNames`)
+//! - Simple-type varieties: atomic restrictions, `xs:list`, and `xs:union`
+//! - All 12 restriction facets: `enumeration`, `pattern`, `length`,
 //!   `minLength`, `maxLength`, `minInclusive`, `maxInclusive`,
-//!   `minExclusive`, `maxExclusive`
-//! - Named top-level simple types, referenced by `type`
+//!   `minExclusive`, `maxExclusive`, `totalDigits`, `fractionDigits`,
+//!   `whiteSpace`
+//! - Named top-level simple and complex types, with `simpleContent` and
+//!   `complexContent` derivation by `extension` and `restriction`
+//! - Identity constraints: `xs:unique`, `xs:key`, and `xs:keyref`
+//!   (`xs:selector` and `xs:field`)
+//! - Multi-file schemas (`xs:import` and `xs:include`) via caller-supplied
+//!   [`SchemaSource`]
 //!
 //! ## Not yet supported
 //!
-//! `xs:all`, `xs:import` / `xs:include` / `xs:redefine`, substitution
-//! groups, identity constraints (`xs:key`, `xs:keyref`, `xs:unique`),
-//! type derivation by extension for complex content, and union or list
-//! simple types. A schema using one of these is not rejected: the
-//! construct is skipped and the surrounding rules still apply.
+//! `xs:redefine`, substitution groups, `@abstract`, `@block`, `@final`,
+//! `@default` value injection, `@mixed` content enforcement, and the full
+//! Schema Component Constraint (UPA / particle attribution) state machine.
+//! Use [`support::unsupported`] to inspect a schema for constructs this
+//! crate does not enforce.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

@@ -19,6 +19,15 @@
 
 use std::fmt;
 
+/// Maximum nesting depth of groups and class subtractions in a pattern.
+const MAX_PATTERN_DEPTH: usize = 64;
+
+/// Maximum explicit quantifier bound `{n,m}` in a pattern.
+const MAX_REPEAT_BOUND: usize = 4_096;
+
+/// Maximum backtracking steps during a single [`Pattern::matches`] call.
+const MAX_MATCH_STEPS: usize = 100_000;
+
 /// One element of a compiled pattern.
 #[derive(Debug, Clone, PartialEq)]
 enum Node {
@@ -49,6 +58,9 @@ enum Node {
     Sequence(Vec<Node>),
     /// Alternatives; the first that matches wins.
     Alternation(Vec<Node>),
+    /// Conjunction across derived type restrictions; every branch must match
+    /// the full input.
+    All(Vec<Node>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,7 +130,13 @@ fn category_matches(name: &str, c: char) -> Option<bool> {
         "Ll" => c.is_lowercase(),
         "N" => c.is_numeric(),
         "Nd" => is_decimal_digit(c),
-        "Zs" => c.is_whitespace() && !matches!(c, '\n' | '\r' | '\t'),
+        "Zs" => matches!(
+            c,
+            ' ' | '\u{00A0}' | '\u{1680}' | '\u{2000}'
+                ..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
+        ),
+        "Zl" => c == '\u{2028}',
+        "Zp" => c == '\u{2029}',
         "Z" => c.is_whitespace(),
         "C" | "Cc" => c.is_control(),
         _ => return None,
@@ -159,6 +177,7 @@ impl Pattern {
         let mut p = Parser {
             chars: &chars,
             pos: 0,
+            depth: 0,
         };
         let root = p.parse_alternation()?;
         if p.pos < chars.len() {
@@ -182,7 +201,10 @@ impl Pattern {
     #[must_use]
     pub fn matches(&self, value: &str) -> bool {
         let chars: Vec<char> = value.chars().collect();
-        match_node(&self.root, &chars, 0, &mut |pos| pos == chars.len())
+        let mut steps = 0usize;
+        match_node(&self.root, &chars, 0, &mut steps, &mut |pos, _| {
+            pos == chars.len()
+        })
     }
 
     /// The pattern as written.
@@ -190,11 +212,32 @@ impl Pattern {
     pub fn source(&self) -> &str {
         &self.source
     }
+
+    /// Combine two patterns declared in the same `<xs:restriction>` step
+    /// as an alternation (logical OR).
+    #[must_use]
+    pub(crate) fn combine_or(self, other: Self) -> Self {
+        Self {
+            root: Node::Alternation(vec![self.root, other.root]),
+            source: format!("{}|{}", self.source, other.source),
+        }
+    }
+
+    /// Combine a base type's pattern with a derived restriction's pattern
+    /// as a conjunction (logical AND).
+    #[must_use]
+    pub(crate) fn combine_and(self, other: Self) -> Self {
+        Self {
+            root: Node::All(vec![self.root, other.root]),
+            source: other.source,
+        }
+    }
 }
 
 struct Parser<'a> {
     chars: &'a [char],
     pos: usize,
+    depth: usize,
 }
 
 impl Parser<'_> {
@@ -217,13 +260,13 @@ impl Parser<'_> {
             if c == '|' || c == ')' {
                 break;
             }
-            items.push(self.parse_repeat()?);
+            items.push(self.parse_repeat(c)?);
         }
         Ok(Node::Sequence(items))
     }
 
-    fn parse_repeat(&mut self) -> Result<Node, PatternError> {
-        let atom = self.parse_atom()?;
+    fn parse_repeat(&mut self, first: char) -> Result<Node, PatternError> {
+        let atom = self.parse_atom(first)?;
         let (min, max) = match self.peek() {
             Some('?') => {
                 self.pos += 1;
@@ -299,14 +342,35 @@ impl Parser<'_> {
                 });
             }
         };
+        if min > MAX_REPEAT_BOUND || max.is_some_and(|m| m > MAX_REPEAT_BOUND) {
+            return Err(PatternError {
+                message: format!(
+                    "quantifier bound exceeds maximum of {MAX_REPEAT_BOUND}"
+                ),
+            });
+        }
+        if max.is_some_and(|m| min > m) {
+            return Err(PatternError {
+                message: "quantifier minimum exceeds maximum".to_owned(),
+            });
+        }
         Ok((min, max))
     }
 
-    fn parse_atom(&mut self) -> Result<Node, PatternError> {
-        match self.peek() {
-            Some('(') => {
+    fn parse_atom(&mut self, first: char) -> Result<Node, PatternError> {
+        match first {
+            '(' => {
+                if self.depth >= MAX_PATTERN_DEPTH {
+                    return Err(PatternError {
+                        message: "pattern exceeds maximum nesting depth"
+                            .to_owned(),
+                    });
+                }
                 self.pos += 1;
-                let inner = self.parse_alternation()?;
+                self.depth += 1;
+                let inner = self.parse_alternation();
+                self.depth -= 1;
+                let inner = inner?;
                 if self.peek() != Some(')') {
                     return Err(PatternError {
                         message: "unterminated group".to_owned(),
@@ -315,15 +379,15 @@ impl Parser<'_> {
                 self.pos += 1;
                 Ok(inner)
             }
-            Some('[') => {
+            '[' => {
                 self.pos += 1;
                 self.parse_class()
             }
-            Some('.') => {
+            '.' => {
                 self.pos += 1;
                 Ok(Node::Any)
             }
-            Some('\\') => {
+            '\\' => {
                 self.pos += 1;
                 let c = self.peek().ok_or_else(|| PatternError {
                     message: "trailing backslash".to_owned(),
@@ -343,19 +407,16 @@ impl Parser<'_> {
             // when meant literally, and every other engine rejects
             // them here. Treating one as a literal would turn a typo
             // into a pattern that quietly matches the wrong thing.
-            Some(c @ ('*' | '+' | '?')) => Err(PatternError {
+            c @ ('*' | '+' | '?') => Err(PatternError {
                 message: format!(
                     "nothing to repeat before `{c}` at position {}",
                     self.pos
                 ),
             }),
-            Some(c) => {
+            c => {
                 self.pos += 1;
                 Ok(Node::Literal(c))
             }
-            None => Err(PatternError {
-                message: "unexpected end of pattern".to_owned(),
-            }),
         }
     }
 
@@ -455,9 +516,7 @@ impl Parser<'_> {
                     .is_some_and(|n| *n != ']' && *n != '[')
             {
                 self.pos += 1;
-                let mut hi = self.peek().ok_or_else(|| PatternError {
-                    message: "unterminated range".to_owned(),
-                })?;
+                let mut hi = self.chars[self.pos];
                 self.pos += 1;
                 // The upper bound may be escaped, as in `[a-\}]`.
                 if hi == '\\' {
@@ -480,8 +539,16 @@ impl Parser<'_> {
 
     /// `-[...]]` — the subtracted class and the outer closing bracket.
     fn parse_subtraction(&mut self) -> Result<Box<Node>, PatternError> {
+        if self.depth >= MAX_PATTERN_DEPTH {
+            return Err(PatternError {
+                message: "pattern exceeds maximum nesting depth".to_owned(),
+            });
+        }
         self.pos += 2; // `-[`
-        let inner = self.parse_class()?;
+        self.depth += 1;
+        let inner = self.parse_class();
+        self.depth -= 1;
+        let inner = inner?;
         if self.peek() != Some(']') {
             return Err(PatternError {
                 message: "unterminated class subtraction".to_owned(),
@@ -590,13 +657,18 @@ fn match_node(
     node: &Node,
     input: &[char],
     pos: usize,
-    k: &mut dyn FnMut(usize) -> bool,
+    steps: &mut usize,
+    k: &mut dyn FnMut(usize, &mut usize) -> bool,
 ) -> bool {
+    *steps = steps.saturating_add(1);
+    if *steps > MAX_MATCH_STEPS {
+        return false;
+    }
     match node {
         Node::Literal(c) => {
-            input.get(pos).is_some_and(|x| x == c) && k(pos + 1)
+            input.get(pos).is_some_and(|x| x == c) && k(pos + 1, steps)
         }
-        Node::Any => pos < input.len() && k(pos + 1),
+        Node::Any => pos < input.len() && k(pos + 1, steps),
         Node::Class {
             negated,
             items,
@@ -611,18 +683,25 @@ fn match_node(
             // except b".
             if hit
                 && let Some(inner) = subtract
-                && match_node(inner, input, pos, &mut |_| true)
+                && match_node(inner, input, pos, steps, &mut |_, _| true)
             {
                 hit = false;
             }
-            (hit != *negated) && k(pos + 1)
+            (hit != *negated) && k(pos + 1, steps)
         }
-        Node::Sequence(items) => match_sequence(items, input, pos, k),
+        Node::Sequence(items) => match_sequence(items, input, pos, steps, k),
         Node::Alternation(branches) => {
-            branches.iter().any(|b| match_node(b, input, pos, k))
+            branches.iter().any(|b| match_node(b, input, pos, steps, k))
+        }
+        Node::All(clauses) => {
+            clauses.iter().all(|c| {
+                match_node(c, input, pos, steps, &mut |end, _| {
+                    end == input.len()
+                })
+            }) && k(input.len(), steps)
         }
         Node::Repeat { node, min, max } => {
-            match_repeat(node, *min, *max, input, pos, k)
+            match_repeat(node, *min, *max, input, pos, steps, k)
         }
     }
 }
@@ -631,13 +710,16 @@ fn match_sequence(
     items: &[Node],
     input: &[char],
     pos: usize,
-    k: &mut dyn FnMut(usize) -> bool,
+    steps: &mut usize,
+    k: &mut dyn FnMut(usize, &mut usize) -> bool,
 ) -> bool {
     match items.split_first() {
-        None => k(pos),
-        Some((head, rest)) => match_node(head, input, pos, &mut |next| {
-            match_sequence(rest, input, next, k)
-        }),
+        None => k(pos, steps),
+        Some((head, rest)) => {
+            match_node(head, input, pos, steps, &mut |next, s| {
+                match_sequence(rest, input, next, s, k)
+            })
+        }
     }
 }
 
@@ -647,10 +729,34 @@ fn match_repeat(
     max: Option<usize>,
     input: &[char],
     pos: usize,
-    k: &mut dyn FnMut(usize) -> bool,
+    steps: &mut usize,
+    k: &mut dyn FnMut(usize, &mut usize) -> bool,
 ) -> bool {
+    if matches!(node, Node::Literal(_) | Node::Any | Node::Class { .. }) {
+        let mut cur = pos;
+        let mut count = 0usize;
+        while count < min {
+            if !match_node(node, input, cur, steps, &mut |_, _| true) {
+                return false;
+            }
+            cur += 1;
+            count += 1;
+        }
+        loop {
+            if k(cur, steps) {
+                return true;
+            }
+            if max.is_some_and(|m| count >= m)
+                || !match_node(node, input, cur, steps, &mut |_, _| true)
+            {
+                return false;
+            }
+            cur += 1;
+            count += 1;
+        }
+    }
     if min > 0 {
-        return match_node(node, input, pos, &mut |next| {
+        return match_node(node, input, pos, steps, &mut |next, s| {
             // A zero-width match would loop forever without this.
             next > pos
                 && match_repeat(
@@ -659,17 +765,19 @@ fn match_repeat(
                     max.map(|m| m - 1),
                     input,
                     next,
+                    s,
                     k,
                 )
         });
     }
-    if k(pos) {
+    if k(pos, steps) {
         return true;
     }
     if max == Some(0) {
         return false;
     }
-    match_node(node, input, pos, &mut |next| {
-        next > pos && match_repeat(node, 0, max.map(|m| m - 1), input, next, k)
+    match_node(node, input, pos, steps, &mut |next, s| {
+        next > pos
+            && match_repeat(node, 0, max.map(|m| m - 1), input, next, s, k)
     })
 }

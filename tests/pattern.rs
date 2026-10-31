@@ -534,3 +534,42 @@ fn name_escapes_accept_non_ascii_names() {
     // A combining mark may not *start* a name.
     assert!(!name.matches("\u{0300}a"));
 }
+
+#[test]
+fn excessive_nesting_depth_and_bounds_are_rejected() {
+    let deep_groups = format!("{}a{}", "(".repeat(65), ")".repeat(65));
+    assert!(Pattern::compile(&deep_groups).is_err());
+
+    let deep_sub = format!("{}a{}", "[a-".repeat(66), "]".repeat(67));
+    assert!(Pattern::compile(&deep_sub).is_err());
+
+    assert!(Pattern::compile("a{5000}").is_err());
+    assert!(Pattern::compile("a{1,5000}").is_err());
+    assert!(Pattern::compile("a{5,2}").is_err());
+
+    // Long single-character repetitions run iteratively without stack overflow.
+    let long = "a".repeat(10_000);
+    assert!(m("a+", &long));
+
+    // Pathological backtracking is bounded by the step budget.
+    let redos = Pattern::compile("(a+)+b").expect("compiles");
+    assert!(!redos.matches(&"a".repeat(40)));
+}
+
+#[test]
+fn separator_categories_distinguish_spaces_lines_and_paragraphs() {
+    assert!(m(r"\p{Zs}", " "));
+    assert!(m(r"\p{Zs}", "\u{00A0}"));
+    assert!(!m(r"\p{Zs}", "\u{2028}"));
+    assert!(m(r"\P{Zs}+", "\u{2028}\u{2029}"));
+    assert!(m(r"\p{Zl}", "\u{2028}"));
+    assert!(m(r"\p{Zp}", "\u{2029}"));
+    assert!(Pattern::compile("a{1,999999999999999999999999999999}").is_err());
+    assert!(m(r"\i", "\u{FDF0}"));
+    assert!(m(r"\i", "\u{10000}"));
+    assert!(!m(r"\i", "\u{F0000}"));
+    assert!(m("(ab){0}", ""));
+    assert!(!m("(ab){0}", "ab"));
+    assert!(!m("(ab){1}", "abab"));
+    assert!(m("(ab){0,2}", "abab"));
+}

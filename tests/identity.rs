@@ -162,3 +162,100 @@ fn the_schema_id_attribute_is_an_xs_id() {
         .is_err()
     );
 }
+
+#[test]
+fn identity_constraint_schema_rules_are_enforced() {
+    // Duplicate identity constraint names in one schema.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="r">
+                 <xs:unique name="dup"><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique>
+                 <xs:key name="dup"><xs:selector xpath="b"/><xs:field xpath="@k"/></xs:key>
+               </xs:element>"#
+        ))
+        .is_err()
+    );
+
+    // selector and field outside an identity constraint.
+    assert!(parse_schema(&schema(r#"<xs:selector xpath="a"/>"#)).is_err());
+    assert!(parse_schema(&schema(r#"<xs:field xpath="@k"/>"#)).is_err());
+
+    // Disallowed `name` attribute on selector or field.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="r">
+                 <xs:unique name="u">
+                   <xs:selector name="bad" xpath="a"/>
+                   <xs:field xpath="@k"/>
+                 </xs:unique>
+               </xs:element>"#
+        ))
+        .is_err()
+    );
+
+    // keyref without `refer`, or unique with `refer`.
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="r">
+                 <xs:keyref name="kr"><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:keyref>
+               </xs:element>"#
+        ))
+        .is_err()
+    );
+    assert!(
+        parse_schema(&schema(
+            r#"<xs:element name="r">
+                 <xs:unique name="u" refer="other"><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique>
+               </xs:element>"#
+        ))
+        .is_err()
+    );
+
+    // Invalid XPath subset in selector or field.
+    for bad_selector in ["", "/a", "a/", "@attr", "../a", "a[1]", "parent::a"] {
+        let xsd = schema(&format!(
+            r#"<xs:element name="r">
+                 <xs:unique name="u">
+                   <xs:selector xpath="{bad_selector}"/>
+                   <xs:field xpath="@k"/>
+                 </xs:unique>
+               </xs:element>"#
+        ));
+        assert!(parse_schema(&xsd).is_err(), "selector `{bad_selector}`");
+    }
+
+    // Structural errors on unique/selector/field placement and attributes.
+    for bad in [
+        r#"<xs:unique name="u"><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique>"#,
+        r#"<xs:element name="r"><xs:unique><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique></xs:element>"#,
+        r#"<xs:element name="r"><xs:unique name="1bad"><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique></xs:element>"#,
+        r#"<xs:element name="r"><xs:unique name="u"><xs:field xpath="@k"/></xs:unique></xs:element>"#,
+        r#"<xs:element name="r"><xs:unique name="u"><xs:selector xpath="a"/></xs:unique></xs:element>"#,
+        r#"<xs:element name="r"><xs:unique name="u"><xs:selector/><xs:field xpath="@k"/></xs:unique></xs:element>"#,
+        r#"<xs:element name="r"><xs:unique name="u"><xs:selector xpath="a"><xs:field xpath="@k"/></xs:selector><xs:field xpath="@k"/></xs:unique></xs:element>"#,
+    ] {
+        assert!(parse_schema(&schema(bad)).is_err(), "{bad}");
+    }
+
+    // A keyref naming a missing constraint or an uncompilable XPath does not blame the document.
+    let s = parse_schema(&schema(
+        r#"<xs:element name="r">
+             <xs:complexType>
+               <xs:sequence>
+                 <xs:element name="a" type="xs:string" maxOccurs="unbounded"/>
+               </xs:sequence>
+             </xs:complexType>
+             <xs:unique name="badXpath">
+               <xs:selector xpath="child::a::b"/>
+               <xs:field xpath="."/>
+             </xs:unique>
+             <xs:keyref name="dangling" refer="nonexistent">
+               <xs:selector xpath="a"/>
+               <xs:field xpath="."/>
+             </xs:keyref>
+           </xs:element>"#,
+    ))
+    .expect("schema parses");
+    let doc = oxml::parse("<r><a>1</a></r>").expect("well-formed");
+    assert!(validate(&doc, &s).is_valid());
+}

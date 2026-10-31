@@ -608,3 +608,62 @@ fn two_attributes_of_one_name_are_rejected() {
         .is_ok()
     );
 }
+
+#[test]
+fn any_attribute_appears_at_most_once_and_after_attributes() {
+    for bad in [
+        r#"<xs:complexType name="t"><xs:anyAttribute namespace='##any'/><xs:anyAttribute namespace='##other'/></xs:complexType>"#,
+        r#"<xs:complexType name="t"><xs:anyAttribute namespace='##any'/><xs:attribute name="a" type="xs:string"/></xs:complexType>"#,
+        r#"<xs:complexType name="t"><xs:attribute name="a" type="xs:string"/><xs:sequence><xs:element name="e" type="xs:string"/></xs:sequence></xs:complexType>"#,
+        r#"<xs:simpleType name="empty"/>"#,
+        r#"<xs:complexType name="t"><xs:sequence><xs:element/></xs:sequence></xs:complexType>"#,
+    ] {
+        assert!(parse_schema(&schema(bad)).is_err());
+    }
+
+    // Self-referential elements, groups, attributeGroups, and degenerate declarations
+    // degrade gracefully without stack overflow.
+    let edge_xsd = schema(
+        r#"<xs:attribute name="topAttr" type="xs:string"/>
+           <xs:group name="cycGroup"><xs:sequence><xs:group ref="cycGroup"/></xs:sequence></xs:group>
+           <xs:group name="emptyGroup"/>
+           <xs:group name="choiceGroup"><xs:choice><xs:element name="c" type="xs:string" maxOccurs="2"/></xs:choice></xs:group>
+           <xs:group name="multiGroup"><xs:sequence><xs:element name="m1" type="xs:string"/><xs:element name="m2" type="xs:string"/></xs:sequence></xs:group>
+           <xs:attributeGroup name="cycAg"><xs:attributeGroup ref="cycAg"/></xs:attributeGroup>
+           <xs:complexType name="scRestrict"><xs:simpleContent><xs:restriction base="xs:string"/></xs:simpleContent></xs:complexType>
+           <xs:complexType name="scEmpty"><xs:simpleContent/></xs:complexType>
+           <xs:complexType name="ccEmpty"><xs:complexContent/></xs:complexType>
+           <xs:complexType name="ccNoBase"><xs:complexContent><xs:extension/></xs:complexContent></xs:complexType>
+           <xs:complexType name="choiceBase"><xs:choice><xs:element name="a" type="xs:string"/></xs:choice></xs:complexType>
+           <xs:complexType name="extChoiceBase"><xs:complexContent><xs:extension base="choiceBase"/></xs:complexContent></xs:complexType>
+           <xs:complexType name="inlineGroupSeq"><xs:group><xs:sequence><xs:element name="x" type="xs:string"/></xs:sequence></xs:group></xs:complexType>
+           <xs:complexType name="inlineGroupEmpty"><xs:group/></xs:complexType>
+           <xs:simpleType name="oddFacets"><xs:restriction base="xs:string"><xs:annotation value="ignored"/><xs:pattern value="["/><xs:whiteSpace value="unknown"/></xs:restriction></xs:simpleType>
+           <xs:simpleType name="bareList"><xs:list/></xs:simpleType>
+           <xs:simpleType name="inlineItemList"><xs:list><xs:simpleType><xs:restriction base="xs:integer"/></xs:simpleType></xs:list></xs:simpleType>
+           <xs:simpleType name="unknownItemList"><xs:list itemType="noSuchType"/></xs:simpleType>
+           <xs:simpleType name="bareUnion"><xs:union/></xs:simpleType>
+           <xs:element name="useCcNoBase" type="ccNoBase"/>
+           <xs:element name="cycEl">
+             <xs:complexType>
+               <xs:sequence>
+                 <xs:element ref="cycEl"/>
+                 <xs:group ref="cycGroup"/>
+                 <xs:group ref="unknownGroup"/>
+                 <xs:group ref="emptyGroup"/>
+                 <xs:group ref="choiceGroup" maxOccurs="3"/>
+                 <xs:group ref="multiGroup" maxOccurs="2"/>
+                 <xs:all><xs:element name="nestedAll" type="xs:string"/></xs:all>
+               </xs:sequence>
+               <xs:attribute/>
+               <xs:attribute ref="unknownAttr"/>
+               <xs:attribute ref="topAttr" fixed="fx"/>
+               <xs:attribute name="complexTypedAttr" type="choiceBase"/>
+               <xs:attributeGroup/>
+               <xs:attributeGroup ref="unknownAg"/>
+               <xs:attributeGroup ref="cycAg"/>
+             </xs:complexType>
+           </xs:element>"#,
+    );
+    assert!(parse_schema(&edge_xsd).is_ok());
+}

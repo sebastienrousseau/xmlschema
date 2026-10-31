@@ -24,6 +24,8 @@
 //! resolves toward "not enforced", which can only ever lower a
 //! reported pass rate.
 
+use std::collections::BTreeSet;
+
 use oxml::{Document, NodeId};
 
 /// A construct present in the schema that this crate does not enforce.
@@ -95,15 +97,22 @@ const HANDLED_ELEMENTS: &[&str] = &[
 /// a caller that already parsed it does not parse it twice.
 #[must_use]
 pub fn unsupported(doc: &Document) -> Vec<Unsupported> {
+    let local_types: BTreeSet<&str> = doc
+        .descendants()
+        .filter(|&id| {
+            doc.element_name(id).is_some_and(|n| {
+                n.local == "simpleType" || n.local == "complexType"
+            })
+        })
+        .filter_map(|id| doc.attribute(id, "name"))
+        .collect();
+
     let mut out = Vec::new();
     for id in doc.descendants() {
-        if !doc.is_element(id) {
-            continue;
-        }
-        let Some(name) = doc.element_name(id).map(|n| n.local.clone()) else {
+        let Some(name) = doc.element_name(id).map(|n| n.local.as_str()) else {
             continue;
         };
-        check_element(doc, id, &name, &mut out);
+        check_element(doc, id, name, &local_types, &mut out);
     }
     out.sort_by(|a, b| a.construct.cmp(&b.construct));
     out.dedup();
@@ -114,6 +123,7 @@ fn check_element(
     doc: &Document,
     id: NodeId,
     name: &str,
+    local_types: &BTreeSet<&str>,
     out: &mut Vec<Unsupported>,
 ) {
     if !HANDLED_ELEMENTS.contains(&name) {
@@ -172,12 +182,12 @@ fn check_element(
     // schema's named simple types; anything else becomes "accepts
     // anything".
     if let Some(type_name) = doc.attribute(id, "type") {
-        check_type_reference(doc, type_name, out);
+        check_type_reference(type_name, local_types, out);
     }
     if (name == "restriction" || name == "extension")
         && let Some(base) = doc.attribute(id, "base")
     {
-        check_type_reference(doc, base, out);
+        check_type_reference(base, local_types, out);
     }
 
     // Attributes that change what a declaration means, none of which
@@ -205,12 +215,12 @@ fn check_element(
 
 /// A type reference that resolves to nothing constrains nothing.
 fn check_type_reference(
-    doc: &Document,
     type_name: &str,
+    local_types: &BTreeSet<&str>,
     out: &mut Vec<Unsupported>,
 ) {
     let local = type_name.rsplit(':').next().unwrap_or(type_name);
-    if oxml_builtin(local) || names_a_local_type(doc, local) {
+    if oxml_builtin(local) || local_types.contains(local) {
         return;
     }
     out.push(Unsupported {
@@ -225,14 +235,4 @@ fn check_type_reference(
 /// name it resolves is a name this crate enforces.
 fn oxml_builtin(local: &str) -> bool {
     crate::datatype::Datatype::from_name(local).is_some()
-}
-
-/// Whether the schema declares a named type with this local name.
-fn names_a_local_type(doc: &Document, local: &str) -> bool {
-    doc.descendants().any(|id| {
-        doc.element_name(id).is_some_and(|n| {
-            (n.local == "simpleType" || n.local == "complexType")
-                && doc.attribute(id, "name") == Some(local)
-        })
-    })
 }

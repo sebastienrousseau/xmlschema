@@ -79,8 +79,8 @@
 | Schema validity | ✅ XSD's own structural rules |
 | `xs:pattern` | ✅ own engine, XSD dialect including class subtraction |
 | Diagnostics | ✅ every violation, each with a path |
-| Conformance | ✅ **95.2%** of the W3C suite's decided tests, ratcheted |
-| Tests | ✅ 241, plus the conformance suite |
+| Conformance | ✅ **96.1%** of the W3C suite's decided tests, ratcheted |
+| Tests | ✅ 247, plus the conformance suite |
 | Identity constraints (`key`, `keyref`, `unique`) | ✅ scoped selectors and fields |
 | `xs:import` / `include` | ✅ with caller-supplied `SchemaSource` |
 | Substitution groups | ✗ |
@@ -358,13 +358,13 @@ schema-for-schemas, which would be a second validator.
 
 ### How is this tested?
 
-241 tests over schema parsing, every built-in type, every facet, the
+247 tests over schema parsing, every built-in type, every facet, the
 pattern engine, the validator and the derivation relation. The XML
 underneath carries the W3C XML conformance suite — 2,557 of 2,557
 decided tests, zero panics.
 
 **And the W3C XML Schema Test Suite**, `xsts-2007-06-20`, pinned by
-SHA-256: **39,420 tests**, of which 95.2% of the decided ones pass,
+SHA-256: **39,420 tests**, of which 96.1% of the decided ones pass,
 with zero panics. This was the main gap in the crate's verification
 until 0.0.6, and closing it is most of what 0.0.6 is.
 
