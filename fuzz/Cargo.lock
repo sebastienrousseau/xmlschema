@@ -71,9 +71,9 @@ dependencies = [
 
 [[package]]
 name = "oxml"
-version = "0.0.12"
+version = "0.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099a65b3139999c480e6e8973c2c7ddba41be2acda6fc9375a5569f072d7aa93"
+checksum = "396a52ae51fc990e11a3333ec3ed6e218cfc9135595ff687e048d4643a48d1f1"
 
 [[package]]
 name = "r-efi"
@@ -89,14 +89,14 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "xmlschema"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "oxml",
 ]
 
 [[package]]
 name = "xmlschema-fuzz"
-version = "0.0.13"
+version = "0.0.14"
 dependencies = [
  "libfuzzer-sys",
  "oxml",

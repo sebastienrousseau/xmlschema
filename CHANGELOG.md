@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.14] - 2026-11-01
+
+### Changed
+
+- Align the publishable package, conformance helper, and fuzz harness
+  with `oxml = "=0.0.13"`, and refresh the root and fuzz `Cargo.lock`
+  files.
+- Advance `taiki-e/install-action` from v2.87.30 to v2.88.0 in `ci.yml`
+  and `release.yml`.
+
 ## [0.0.13] - 2026-10-31
 
 ### Fixed
