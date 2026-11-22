@@ -98,12 +98,12 @@ never confused for one another.
 
 ```toml
 [dependencies]
-xmlschema = "=0.0.14"
+xmlschema = "=0.0.15"
 oxml = "=0.0.13"
 ```
 
 Use matching family versions so documents crossing the core/schema
-boundary have one Rust type. This is the 0.0.14 release candidate;
+boundary have one Rust type. This is the 0.0.15 release candidate;
 registry availability is verified separately before publication.
 
 ## Quick Start
