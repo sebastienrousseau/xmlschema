@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "xmlschema"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "criterion",
  "oxml",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "xmlschema-conformance"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "oxml",
  "xmlschema",

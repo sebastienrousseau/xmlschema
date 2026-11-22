@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Every member of the [oxml](https://github.com/sebastienrousseau/oxml)
 suite ships the same version number.
 
+## [0.0.15] - 2026-11-22
+
+### Changed
+
+- Advance the package, conformance helper, and fuzz harness to 0.0.15
+  (still `oxml = "=0.0.13"`, the latest published core) and refresh
+  the root and fuzz `Cargo.lock` files.
+- Advance `taiki-e/install-action` from v2.88.0 to v2.90.6 in `ci.yml`
+  and `release.yml` (#89).
+- Advance `EmbarkStudios/cargo-deny-action` from v2.1.1 to v2.1.2 in
+  `security.yml` (#88).
+- Advance `github/codeql-action` from v4.39.1 to v4.39.3 in
+  `codeql.yml` and `scorecard.yml` (#85).
+
+### Fixed
+
+- The fuzz license and Scorecard policy tests asserted one exact
+  action revision, so every Dependabot pin bump turned CI red. They now
+  require a full 40-character commit SHA pin (and, for cargo-deny, the
+  same pin on both graphs) without naming the revision.
+
 ## [0.0.14] - 2026-11-01
 
 ### Changed
