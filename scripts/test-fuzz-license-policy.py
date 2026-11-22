@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 """Keep the approved fuzz license exception out of runtime policy."""
 from pathlib import Path
+import re
 import tomllib
 import unittest
 
@@ -26,8 +27,13 @@ class FuzzLicensePolicy(unittest.TestCase):
 
     def test_ci_checks_both_graphs(self):
         workflow = (ROOT / ".github/workflows/security.yml").read_text()
-        action = "uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25"
-        self.assertEqual(workflow.count(action), 2)
+        # Both graphs run the same SHA-pinned action; the pin itself moves
+        # with Dependabot, so assert its shape rather than one revision.
+        pins = re.findall(
+            r"uses: EmbarkStudios/cargo-deny-action@([0-9a-f]{40})\b", workflow
+        )
+        self.assertEqual(len(pins), 2)
+        self.assertEqual(len(set(pins)), 1)
         self.assertIn("manifest-path: fuzz/Cargo.toml", workflow)
         self.assertIn("arguments: --all-features --locked", workflow)
 

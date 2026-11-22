@@ -67,8 +67,10 @@ class ScorecardPolicy(unittest.TestCase):
         self.assertIn('supply-chain/branch-protection', norm)
         self.assertIn('supply-chain/online-scm', norm)
         step = self.step('Upload posture results to code scanning')
-        self.assertIn('uses: github/codeql-action/upload-sarif@'
-                      '9b3254085494b55a0f7c4c2b3d2d52cc712ce370', step)
+        # Pinned by full commit SHA; the revision moves with Dependabot.
+        self.assertRegex(
+            step, r'uses: github/codeql-action/upload-sarif@[0-9a-f]{40}\b'
+        )
         self.assertIn('sarif_file: results.sarif', step)
         self.assertIn('category: /tool:scorecard', step)
         self.assertIn("github.event_name != 'pull_request' || "
